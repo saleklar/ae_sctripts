@@ -312,7 +312,7 @@
         // CENTER cell (cell 2, 0-based).  Surrounding cells get adjacent symbols
         // (wrapped) so the reel looks varied while spinning.
         var CELLS_PER_REEL = 5;
-        function buildReel(name, orderedItems, landingIdx) {
+        function buildReel(name, orderedItems, landingIdx, reelNum) {
             var rH       = symSize * CELLS_PER_REEL;
             var reel     = app.project.items.addComp(name, compSize, rH, 1, fixedDur, fr);
             var n        = orderedItems.length;
@@ -392,7 +392,18 @@
                     var rl = reel.layers.add(orderedItems[si]);
                     rl.label = cellLabels[ci % cellLabels.length];
                     rl.position.setValue([compSize / 2, baseY]);
-                    rl.opacity.setValue(si === visIdx ? 100 : 0);
+
+                    // Center cell: opacity driven live by Reel N Symbol slider in Master.
+                    // Non-center cells: baked opacity — they are frozen at stat anyway.
+                    if (ci === 2) {
+                        rl.opacity.setValue(100);  // default visible; expression overrides
+                        rl.opacity.expression =
+                            'var sym = Math.round(comp("Master").layer("Reel_Control").effect("Reel ' + reelNum + ' Symbol")("Slider"));' +
+                            'sym === ' + si + ' ? 100 : 0;';
+                    } else {
+                        rl.opacity.setValue(si === visIdx ? 100 : 0);
+                    }
+
                     rl.position.expression = posExpr;
 
                     // Non-center cells must never animate — freeze them at t=0 (stat frame).
@@ -422,7 +433,7 @@
         var reelComps = [];
         for (var reelIdx = 0; reelIdx < numReels; reelIdx++) {
             var landingIdx = reelIdx % precompItems.length;
-            reelComps.push(buildReel("reel_" + (reelIdx + 1), precompItems, landingIdx));
+            reelComps.push(buildReel("reel_" + (reelIdx + 1), precompItems, landingIdx, reelIdx + 1));
         }
 
         // ----------------------------------------------------------------
