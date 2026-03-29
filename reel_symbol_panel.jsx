@@ -16,78 +16,63 @@
 
     // ── Layout constants ────────────────────────────────────────────────────
     var REEL_COUNT = 5;
-    var CELL_W     = 90;   // px width of each symbol column button
-    var CELL_H     = 28;   // px height of each row button
-    var LABEL_W    = 52;   // px width of the "Reel N" row-header label
-    var HDR_H      = 22;   // px height of the column header row
+    var COL_W      = 110;  // width of each reel column dropdown
+    var ROW_H      = 24;   // height of top/bottom adjacent rows
+    var CTR_H      = 30;   // height of center (landing) dropdown row
+    var LABEL_W    = 14;   // width of row-indicator strip
 
     // ── State ───────────────────────────────────────────────────────────────
-    var symNames  = [];     // display names (Pair_01 → "01", Solo_03 → "03")
-    var symItems  = [];     // full CompItem names for matching
-    var curSel    = [];     // curSel[reelIdx] = 0-based symIdx
-    var btnGrid   = [];     // btnGrid[reelIdx][symIdx] = Button widget
-    var gridGroup = null;   // container rebuilt on every Refresh
+    var symNames   = [];   // short display names  e.g. "01"
+    var symItems   = [];   // full comp names       e.g. "Pair_01"
+    var curSel     = [];   // curSel[reel] = 0-based symIdx
+    var ddList     = [];   // ddList[reel] = dropdownlist widget
+    var topLabels  = [];   // topLabels[reel] = statictext (symbol above landing)
+    var botLabels  = [];   // botLabels[reel] = statictext (symbol below landing)
+    var _rc        = null; // cached Reel_Control layer
+    var _statusTxt = null;
+    var _win       = null;
+    var gridGroup  = null;
 
     // ── Build UI ─────────────────────────────────────────────────────────────
-    function buildUI(thisObj) {
-        var win = (thisObj instanceof Panel)
-            ? thisObj
+    function buildUI(host) {
+        var win = (host instanceof Panel)
+            ? host
             : new Window("palette", "Reel Symbol Chart", undefined, { resizeable: true });
+        _win = win;
 
-        win.orientation    = "column";
-        win.alignChildren  = ["fill", "top"];
-        win.spacing        = 6;
-        win.margins        = [8, 8, 8, 8];
+        win.orientation   = "column";
+        win.alignChildren = ["fill", "top"];
+        win.spacing       = 4;
+        win.margins       = [8, 8, 8, 8];
 
-        // ── Top toolbar ──────────────────────────────────────────────────────
-        var toolbar = win.add("group");
-        toolbar.orientation   = "row";
-        toolbar.alignChildren = ["left", "center"];
-        toolbar.spacing       = 8;
+        // Toolbar
+        var tb = win.add("group");
+        tb.orientation = "row"; tb.alignChildren = ["left", "center"]; tb.spacing = 8;
+        var ttl = tb.add("statictext", undefined, "REEL SYMBOL CHART");
+        ttl.graphics.font = ScriptUI.newFont("dialog", "BOLD", 11);
+        var sp = tb.add("group"); sp.alignment = ["fill", "center"];
+        var rb = tb.add("button", undefined, "\u21BA Refresh");
+        rb.preferredSize = [76, 22];
+        rb.helpTip = "Re-read symbols and sliders from AE project";
+        rb.onClick = function () { refreshAll(); };
 
-        var titleLbl = toolbar.add("statictext", undefined, "REEL  SYMBOL  CHART");
-        titleLbl.graphics.font = ScriptUI.newFont("dialog", "BOLD", 11);
-
-        var spacer = toolbar.add("group");
-        spacer.alignment = ["fill", "center"];
-
-        var refreshBtn = toolbar.add("button", undefined, "Refresh");
-        refreshBtn.preferredSize = [70, 22];
-        refreshBtn.helpTip = "Re-read symbols and slider values from AE project";
-        refreshBtn.onClick = function () { refreshAll(win); };
-
-        // ── Scrollable grid area ─────────────────────────────────────────────
-        // A Panel with a border gives the spreadsheet "border" aesthetic.
-        var gridBorder = win.add("panel", undefined, "");
-        gridBorder.alignChildren = ["left", "top"];
-        gridBorder.spacing       = 0;
-        gridBorder.margins       = [4, 4, 4, 4];
-
-        gridGroup = gridBorder.add("group");
+        // Grid container (no extra border panel)
+        gridGroup = win.add("group");
         gridGroup.orientation   = "column";
         gridGroup.alignChildren = ["left", "top"];
-        gridGroup.spacing       = 1;
+        gridGroup.spacing       = 2;
+        gridGroup.margins       = [0, 0, 0, 0];
 
-        // ── Status bar ───────────────────────────────────────────────────────
-        var statusBar = win.add("panel", undefined, "");
-        statusBar.alignChildren = ["fill", "center"];
-        statusBar.margins       = [6, 4, 6, 4];
+        // Status bar
+        var stBar = win.add("group");
+        stBar.orientation = "row"; stBar.alignChildren = ["fill", "center"];
+        var stTxt = stBar.add("statictext", undefined, "Click \u21BA Refresh to connect");
+        stTxt.alignment = ["fill", "center"];
 
-        var statusTxt = statusBar.add("statictext", undefined, "Click Refresh to connect");
-        statusTxt.alignment = ["fill", "center"];
+        refreshAll(stTxt);
 
-        // Wire refresh to status label
-        refreshBtn.statusTxt = statusTxt;
-
-        // Initial population
-        refreshAll(win, statusTxt);
-
-        if (win instanceof Window) {
-            win.center();
-            win.show();
-        } else {
-            win.layout.layout(true);
-        }
+        if (win instanceof Window) { win.center(); win.show(); }
+        else { win.layout.layout(true); }
         return win;
     }
 
