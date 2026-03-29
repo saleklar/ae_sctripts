@@ -385,8 +385,12 @@
                     '  [x, y];' +
                     '}';
 
+                // Label colors per cell: 1=Red, 2=Yellow, 3=Aqua, 4=Pink, 5=Lavender
+                var cellLabels = [1, 2, 3, 4, 5];
+
                 for (var si = 0; si < n; si++) {
                     var rl = reel.layers.add(orderedItems[si]);
+                    rl.label = cellLabels[ci % cellLabels.length];
                     rl.position.setValue([compSize / 2, baseY]);
                     rl.opacity.setValue(si === visIdx ? 100 : 0);
                     rl.position.expression = posExpr;
