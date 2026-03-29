@@ -369,9 +369,14 @@
                     '  [x, y];' +
                     '}';
 
+                // Scale each layer so it fits exactly within the symSize cell slot.
+                // compSize = symSize * 1.5, so unscaled layers overflow into adjacent cells.
+                var cellScale = symSize / compSize * 100;
+
                 for (var si = 0; si < n; si++) {
                     var rl = reel.layers.add(orderedItems[si]);
                     rl.position.setValue([compSize / 2, baseY]);
+                    rl.scale.setValue([cellScale, cellScale]);
                     rl.opacity.setValue(si === visIdx ? 100 : 0);
                     rl.position.expression = posExpr;
 
