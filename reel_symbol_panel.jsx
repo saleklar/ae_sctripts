@@ -136,140 +136,129 @@
         }
     }
 
-    // ── Grid builder ──────────────────────────────────────────────────────────
-    function clearGroup(grp) {
-        while (grp.children.length > 0) {
-            grp.remove(grp.children[0]);
-        }
+    // â”€â”€ Grid helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    function clearGroup(g) { while (g.children.length) g.remove(g.children[0]); }
+
+    function adjName(symIdx, offset) {
+        var n = symNames.length;
+        if (n === 0) return "";
+        return symNames[((symIdx + offset) % n + n) % n];
     }
 
-    function buildGrid(rcLayer) {
+    function updateAdj(ri) {
+        var si = curSel[ri] || 0;
+        if (topLabels[ri]) topLabels[ri].text = adjName(si, -1);
+        if (botLabels[ri]) botLabels[ri].text = adjName(si,  1);
+    }
+
+    // â”€â”€ Grid builder (3 rows x 5 cols) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    function buildGrid(rc) {
         clearGroup(gridGroup);
-        btnGrid = [];
-        var nSym = symNames.length;
-        if (nSym === 0) return;
+        ddList = []; topLabels = []; botLabels = [];
+        var n = symNames.length;
+        if (n === 0) return;
 
-        // ── Column header row ────────────────────────────────────────────────
+        // Column headers
         var hdrRow = gridGroup.add("group");
-        hdrRow.orientation   = "row";
-        hdrRow.alignChildren = ["center", "center"];
-        hdrRow.spacing       = 1;
-
-        // corner cell (blank, aligns with reel labels)
-        var cornerCell = hdrRow.add("panel", undefined, "");
-        cornerCell.preferredSize = [LABEL_W, HDR_H];
-
-        for (var si = 0; si < nSym; si++) {
-            var hdrCell = hdrRow.add("panel", undefined, "");
-            hdrCell.preferredSize    = [CELL_W, HDR_H];
-            hdrCell.alignChildren    = ["center", "center"];
-            hdrCell.margins          = [2, 2, 2, 2];
-            var hdrTxt = hdrCell.add("statictext", undefined, symNames[si]);
-            hdrTxt.graphics.font     = ScriptUI.newFont("dialog", "BOLD", 10);
-            hdrTxt.alignment         = ["center", "center"];
-            hdrTxt.helpTip           = symItems[si];
+        hdrRow.orientation = "row"; hdrRow.spacing = 2;
+        var corner = hdrRow.add("statictext", undefined, "");
+        corner.preferredSize = [LABEL_W, ROW_H];
+        for (var r = 0; r < REEL_COUNT; r++) {
+            var h = hdrRow.add("statictext", undefined, "Reel " + (r + 1));
+            h.preferredSize = [COL_W, ROW_H]; h.justify = "center";
+            h.graphics.font = ScriptUI.newFont("dialog", "BOLD", 10);
         }
 
-        // ── One row per reel ─────────────────────────────────────────────────
-        for (var ri = 0; ri < REEL_COUNT; ri++) {
-            var row = gridGroup.add("group");
-            row.orientation   = "row";
-            row.alignChildren = ["center", "center"];
-            row.spacing       = 1;
-
-            // Row label (Reel N)
-            var lblCell = row.add("panel", undefined, "");
-            lblCell.preferredSize = [LABEL_W, CELL_H];
-            lblCell.alignChildren = ["center", "center"];
-            lblCell.margins       = [2, 2, 2, 2];
-            var lbl = lblCell.add("statictext", undefined, "Reel " + (ri + 1));
-            lbl.graphics.font     = ScriptUI.newFont("dialog", "BOLD", 10);
-            lbl.alignment         = ["center", "center"];
-
-            btnGrid[ri] = [];
-
-            for (var si2 = 0; si2 < nSym; si2++) {
-                var btn = row.add("button", undefined, "");
-                btn.preferredSize = [CELL_W, CELL_H];
-                // Capture loop vars
-                (function (r, s, layer) {
-                    btn.onClick = function () {
-                        setSelected(r, s);
-                        var ok = writeSlider(layer, r, s);
-                        updateStatus(
-                            ok
-                                ? "\u2714  Reel " + (r + 1) + "  \u2192  " + symItems[s]
-                                : "\u26A0  Could not write to Reel_Control"
-                        );
-                    };
-                })(ri, si2, rcLayer);
-                btnGrid[ri][si2] = btn;
-            }
+        // Top row: symbol above landing (read-only)
+        var topRow = gridGroup.add("group");
+        topRow.orientation = "row"; topRow.spacing = 2;
+        var tLbl = topRow.add("statictext", undefined, "\u25B2");
+        tLbl.preferredSize = [LABEL_W, ROW_H];
+        for (var r2 = 0; r2 < REEL_COUNT; r2++) {
+            var tp = topRow.add("panel", undefined, "");
+            tp.preferredSize = [COL_W, ROW_H];
+            tp.alignChildren = ["center", "center"]; tp.margins = [2, 2, 2, 2];
+            var tl = tp.add("statictext", undefined, "--");
+            tl.preferredSize = [COL_W - 8, ROW_H - 6]; tl.justify = "center";
+            topLabels[r2] = tl;
         }
-    }
 
-    function setSelected(reelIdx, symIdx) {
-        curSel[reelIdx] = symIdx;
-        var nSym = symNames.length;
-        for (var s = 0; s < nSym; s++) {
-            if (!btnGrid[reelIdx] || !btnGrid[reelIdx][s]) continue;
-            // ✔ prefix on selected cell, clear others
-            btnGrid[reelIdx][s].text = (s === symIdx)
-                ? "\u2714 " + symNames[s]
-                : symNames[s];
+        // Center row: landing symbol â€” dropdown per reel
+        var ctrRow = gridGroup.add("group");
+        ctrRow.orientation = "row"; ctrRow.spacing = 2;
+        var cLbl = ctrRow.add("statictext", undefined, "\u25C6");
+        cLbl.preferredSize = [LABEL_W, CTR_H];
+        cLbl.graphics.font = ScriptUI.newFont("dialog", "BOLD", 11);
+        for (var r3 = 0; r3 < REEL_COUNT; r3++) {
+            var dd = ctrRow.add("dropdownlist", undefined, symNames);
+            dd.preferredSize = [COL_W, CTR_H];
+            dd.selection     = Math.max(0, Math.min(curSel[r3] || 0, n - 1));
+            (function (ri, layer) {
+                dd.onChange = function () {
+                    if (!dd.selection) return;
+                    var si = dd.selection.index;
+                    curSel[ri] = si;
+                    updateAdj(ri);
+                    var ok = writeSlider(layer, ri, si);
+                    updateStatus(
+                        ok ? "\u2714  Reel " + (ri + 1) + " \u2192 " + (symItems[si] || si)
+                           : "\u26A0  Could not write to Reel_Control"
+                    );
+                };
+            })(r3, rc);
+            ddList[r3] = dd;
+        }
+
+        // Bottom row: symbol below landing (read-only)
+        var botRow = gridGroup.add("group");
+        botRow.orientation = "row"; botRow.spacing = 2;
+        var bLbl = botRow.add("statictext", undefined, "\u25BC");
+        bLbl.preferredSize = [LABEL_W, ROW_H];
+        for (var r4 = 0; r4 < REEL_COUNT; r4++) {
+            var bp = botRow.add("panel", undefined, "");
+            bp.preferredSize = [COL_W, ROW_H];
+            bp.alignChildren = ["center", "center"]; bp.margins = [2, 2, 2, 2];
+            var bl = bp.add("statictext", undefined, "--");
+            bl.preferredSize = [COL_W - 8, ROW_H - 6]; bl.justify = "center";
+            botLabels[r4] = bl;
         }
     }
 
-    function applyAllSelections() {
-        for (var ri = 0; ri < REEL_COUNT; ri++) {
-            var sel = Math.max(0, Math.min(curSel[ri] || 0, symNames.length - 1));
-            setSelected(ri, sel);
+    function applyAll() {
+        var n = symNames.length;
+        for (var r = 0; r < REEL_COUNT; r++) {
+            var si = Math.max(0, Math.min(curSel[r] || 0, n - 1));
+            if (ddList[r]) ddList[r].selection = si;
+            updateAdj(r);
         }
     }
 
-    // ── Status text helper ────────────────────────────────────────────────────
-    var _statusTxt = null;
-    function updateStatus(msg) {
-        if (_statusTxt) _statusTxt.text = msg;
-    }
+    function updateStatus(msg) { if (_statusTxt) _statusTxt.text = msg; }
 
-    // ── Full refresh ──────────────────────────────────────────────────────────
-    function refreshAll(win, statusTxtArg) {
-        if (statusTxtArg) _statusTxt = statusTxtArg;
+    function refreshAll(statusArg) {
+        if (statusArg) _statusTxt = statusArg;
+        var c = collectSymbolNames();
+        symNames = c.names; symItems = c.full;
+        _rc = getMasterReelControl();
 
-        var collected = collectSymbolNames();
-        symNames = collected.names;
-        symItems = collected.full;
-
-        var rc = getMasterReelControl();
-
-        if (!rc) {
-            updateStatus("\u26A0  Master comp or Reel_Control null not found");
+        if (!_rc) {
+            updateStatus("\u26A0  Master / Reel_Control not found");
             clearGroup(gridGroup);
-            try { win.layout.layout(true); } catch (e) {}
-            return;
+            try { _win.layout.layout(true); } catch (e) {}  return;
         }
-
         if (symNames.length === 0) {
-            updateStatus("\u26A0  No Pair_ / Solo_ comps found — run main script first");
+            updateStatus("\u26A0  No Pair_/Solo_ comps \u2014 run main script first");
             clearGroup(gridGroup);
-            try { win.layout.layout(true); } catch (e) {}
-            return;
+            try { _win.layout.layout(true); } catch (e) {}  return;
         }
 
-        curSel = readSliders(rc);
-        buildGrid(rc);
-        applyAllSelections();
-
-        updateStatus(
-            "\u2714  " + symNames.length + " symbol" + (symNames.length !== 1 ? "s" : "") +
-            "  \u00D7  " + REEL_COUNT + " reels  \u2014  connected"
-        );
-
-        try { win.layout.layout(true); } catch (e) {}
+        curSel = readSliders(_rc);
+        buildGrid(_rc);
+        applyAll();
+        updateStatus("\u2714  " + symNames.length + " symbols, " + REEL_COUNT + " reels \u2014 connected");
+        try { _win.layout.layout(true); } catch (e) {}
     }
 
-    // ── Launch ────────────────────────────────────────────────────────────────
     buildUI(thisObj);
 
 })(this);
