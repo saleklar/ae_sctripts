@@ -138,67 +138,84 @@
 
 
     // ── Grid helpers ──────────────────────────────────────────────────────────
-    var cellBtns = [];  // cellBtns[symIdx][reelIdx] = button widget
+    // rowDDs[rowOffset][reelIdx]  offset: 0=top(above), 1=center(landing), 2=bottom(below)
+    var rowDDs = [[], [], []];
 
     function clearGroup(g) { while (g.children.length) g.remove(g.children[0]); }
 
-    function markSelected() {
+    // Sync all 3 dropdowns for reel ri to reflect curSel[ri]
+    function syncReel(ri) {
         var n = symNames.length;
-        for (var s = 0; s < n; s++) {
-            for (var r = 0; r < REEL_COUNT; r++) {
-                if (!cellBtns[s] || !cellBtns[s][r]) continue;
-                cellBtns[s][r].text = (curSel[r] === s)
-                    ? "\u25CF " + symNames[s]
-                    : symNames[s];
-            }
-        }
+        if (n === 0) return;
+        var landing = ((curSel[ri] || 0) % n + n) % n;
+        var above   = (landing - 1 + n) % n;
+        var below   = (landing + 1) % n;
+        if (rowDDs[0][ri]) rowDDs[0][ri].selection = above;
+        if (rowDDs[1][ri]) rowDDs[1][ri].selection = landing;
+        if (rowDDs[2][ri]) rowDDs[2][ri].selection = below;
     }
 
-    // ── Grid builder (all N symbol rows x 5 reel cols) ────────────────────────
+    function syncAll() {
+        for (var r = 0; r < REEL_COUNT; r++) syncReel(r);
+    }
+
+    // ── Grid builder (3 rows x 5 cols, all dropdowns) ─────────────────────────
     function buildGrid(rc) {
         clearGroup(gridGroup);
-        cellBtns = [];
+        rowDDs = [[], [], []];
         var n = symNames.length;
         if (n === 0) return;
 
+        var ROW_DEFS = [
+            { label: "\u25B2", offset: -1 },   // above landing
+            { label: "\u25C6", offset:  0 },   // landing (center)
+            { label: "\u25BC", offset:  1 }    // below landing
+        ];
+
         // Column headers
         var hdrRow = gridGroup.add("group");
-        hdrRow.orientation = "row"; hdrRow.spacing = 2;
+        hdrRow.orientation = "row"; hdrRow.spacing = 4;
         var corner = hdrRow.add("statictext", undefined, "");
         corner.preferredSize = [LABEL_W * 2, ROW_H];
-        for (var r = 0; r < REEL_COUNT; r++) {
-            var h = hdrRow.add("statictext", undefined, "Reel " + (r + 1));
+        for (var c = 0; c < REEL_COUNT; c++) {
+            var h = hdrRow.add("statictext", undefined, "Reel " + (c + 1));
             h.preferredSize = [COL_W, ROW_H]; h.justify = "center";
             h.graphics.font = ScriptUI.newFont("dialog", "BOLD", 10);
         }
 
-        // One row per symbol position
-        for (var si = 0; si < n; si++) {
-            var row = gridGroup.add("group");
-            row.orientation = "row"; row.spacing = 2;
-            var lbl = row.add("statictext", undefined, String(si + 1));
-            lbl.preferredSize = [LABEL_W * 2, ROW_H]; lbl.justify = "right";
-            cellBtns[si] = [];
+        // 3 rows
+        for (var rowIdx = 0; rowIdx < 3; rowIdx++) {
+            var def  = ROW_DEFS[rowIdx];
+            var rowH = (rowIdx === 1) ? CTR_H : ROW_H;
+            var grp  = gridGroup.add("group");
+            grp.orientation = "row"; grp.spacing = 4;
+            var lbl = grp.add("statictext", undefined, def.label);
+            lbl.preferredSize = [LABEL_W * 2, rowH];
+            if (rowIdx === 1) lbl.graphics.font = ScriptUI.newFont("dialog", "BOLD", 12);
+
             for (var ri = 0; ri < REEL_COUNT; ri++) {
-                var btn = row.add("button", undefined, symNames[si]);
-                btn.preferredSize = [COL_W, ROW_H];
-                (function (s, r2, layer) {
-                    btn.onClick = function () {
-                        curSel[r2] = s;
-                        var ok = writeSlider(layer, r2, s);
-                        markSelected();
+                var dd = grp.add("dropdownlist", undefined, symNames);
+                dd.preferredSize = [COL_W, rowH];
+                (function (r2, dOffset, rowI) {
+                    dd.onChange = function () {
+                        if (!dd.selection) return;
+                        var n2 = symNames.length;
+                        var picked = dd.selection.index;
+                        // convert picked position to landing index
+                        var newLanding = ((picked - dOffset) % n2 + n2) % n2;
+                        curSel[r2] = newLanding;
+                        syncReel(r2);
+                        var ok = writeSlider(_rc, r2, newLanding);
                         updateStatus(
-                            ok ? "\u2714  Reel " + (r2 + 1) + " \u2192 " + symNames[s]
+                            ok ? "\u2714  Reel " + (r2 + 1) + " \u2192 " + symNames[newLanding]
                                : "\u26A0  Could not write to Reel_Control"
                         );
                     };
-                })(si, ri, rc);
-                cellBtns[si][ri] = btn;
+                })(ri, def.offset, rowIdx);
+                rowDDs[rowIdx][ri] = dd;
             }
         }
     }
-
-    function applyAll() { markSelected(); }
 
     function updateStatus(msg) { if (_statusTxt) _statusTxt.text = msg; }
 
@@ -221,7 +238,7 @@
 
         curSel = readSliders(_rc);
         buildGrid(_rc);
-        applyAll();
+        syncAll();
         updateStatus("\u2714  " + symNames.length + " symbols, " + REEL_COUNT + " reels \u2014 connected");
         try { _win.layout.layout(true); } catch (e) {}
     }
