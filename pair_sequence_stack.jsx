@@ -393,13 +393,15 @@
                     rl.label = cellLabels[ci % cellLabels.length];
                     rl.position.setValue([compSize / 2, baseY]);
 
-                    // Center cell: opacity driven live by Reel N Sym SI checkbox in Master.
+                    // Center cell: opacity driven live by Reel N Symbol slider in Master.
+                    // Slider value (0-based int) == si → layer visible, else hidden.
                     // Non-center cells: baked opacity — they are frozen at stat anyway.
                     if (ci === 2) {
-                        rl.opacity.setValue(100);  // default visible; expression overrides
+                        rl.opacity.setValue(100);
                         rl.opacity.expression =
-                            'comp("Master").layer("Reel_Control").effect("Reel ' + reelNum + ' Sym ' + (si + 1) + '")' +
-                            '("Checkbox") ? 100 : 0;';
+                            'var sym = Math.round(comp("Master").layer("Reel_Control")' +
+                            '.effect("Reel ' + reelNum + ' Symbol")("Slider"));' +
+                            'sym === ' + si + ' ? 100 : 0;';
                     } else {
                         rl.opacity.setValue(si === visIdx ? 100 : 0);
                     }
@@ -419,21 +421,71 @@
         }
 
         // ----------------------------------------------------------------
-        // Step 4: Build 5 reel compositions, each with exactly 5 cells.
-        //   The landing symbol for each reel (cell 2, center row) is set
-        //   by the "Reel N Symbol" slider — read at SCRIPT RUN TIME below.
-        //   Other cells get adjacent symbols for visual spin variety.
+        // Step 4: Show symbol-assignment grid dialog, then build 5 reels.
         // ----------------------------------------------------------------
-        var reelH    = symSize * CELLS_PER_REEL;   // FIXED: 5 cells × symSize
+        var reelH    = symSize * CELLS_PER_REEL;
         var numReels = 5;
 
-        // Default landing symbols: reel 1 → symbol 0, reel 2 → symbol 1, etc.
-        // After the script runs, the "Reel N Symbol" sliders on Reel_Control show
-        // which symbol is in each reel's landing cell.  Change and re-run to update.
+        // --- ScriptUI grid: rows = reels, columns = symbols, radio per row ---
+        function showSymbolGrid(nReels, items) {
+            var dlg = new Window("dialog", "Assign Landing Symbol per Reel");
+            dlg.orientation = "column";
+            dlg.alignChildren = ["left", "top"];
+            dlg.spacing = 6;
+
+            // Column headers
+            var headerRow = dlg.add("group");
+            headerRow.orientation = "row";
+            headerRow.spacing = 0;
+            var reelLabel = headerRow.add("statictext", undefined, "         ");
+            reelLabel.preferredSize.width = 60;
+            for (var hi = 0; hi < items.length; hi++) {
+                var hdr = headerRow.add("statictext", undefined, items[hi].name);
+                hdr.preferredSize.width = 90;
+                hdr.justify = "center";
+            }
+
+            // One row per reel with radio buttons
+            var radioGroups = [];
+            for (var ri = 0; ri < nReels; ri++) {
+                var row = dlg.add("group");
+                row.orientation = "row";
+                row.spacing = 0;
+                var lbl = row.add("statictext", undefined, "Reel " + (ri + 1) + "  »");
+                lbl.preferredSize.width = 60;
+                radioGroups[ri] = [];
+                for (var si2 = 0; si2 < items.length; si2++) {
+                    var rb = row.add("radiobutton", undefined, "");
+                    rb.preferredSize.width = 90;
+                    if (si2 === ri % items.length) rb.value = true;
+                    radioGroups[ri].push(rb);
+                }
+            }
+
+            var btnGrp = dlg.add("group");
+            btnGrp.alignment = "right";
+            btnGrp.add("button", undefined, "OK",     { name: "ok"     });
+            btnGrp.add("button", undefined, "Cancel", { name: "cancel" });
+
+            if (dlg.show() !== 1) return null;
+
+            var result = [];
+            for (var ri2 = 0; ri2 < nReels; ri2++) {
+                var chosen = ri2 % items.length; // fallback
+                for (var si3 = 0; si3 < radioGroups[ri2].length; si3++) {
+                    if (radioGroups[ri2][si3].value) { chosen = si3; break; }
+                }
+                result.push(chosen);
+            }
+            return result;
+        }
+
+        var landingIdxArr = showSymbolGrid(numReels, precompItems);
+        if (!landingIdxArr) { app.endUndoGroup(); return; }
+
         var reelComps = [];
         for (var reelIdx = 0; reelIdx < numReels; reelIdx++) {
-            var landingIdx = reelIdx % precompItems.length;
-            reelComps.push(buildReel("reel_" + (reelIdx + 1), precompItems, landingIdx, reelIdx + 1));
+            reelComps.push(buildReel("reel_" + (reelIdx + 1), precompItems, landingIdxArr[reelIdx], reelIdx + 1));
         }
 
         // ----------------------------------------------------------------
@@ -602,21 +654,16 @@
         spin2OffsetFx.name = "Spin 2 Offset";
         spin2OffsetFx.property("ADBE Slider Control-0001").setValue(2);
 
-        // Per-reel controls: one Checkbox per symbol slot per reel (LIVE — toggle to swap symbol)
-        // and Win checkbox to enable/disable win animation per reel.
-        // Default: reel 1 → sym 1 checked, reel 2 → sym 2, … (wraps if fewer reels than syms).
+        // Per-reel controls: one Symbol slider (0-based index, drag to change live)
+        // + one Win checkbox per reel.  Slider value reflects the grid selection made above.
         for (var rni = 1; rni <= numReels; rni++) {
-            var defaultSymIdx = (rni - 1) % precompItems.length; // 0-based
-            for (var symi = 1; symi <= precompItems.length; symi++) {
-                var reelSymFx = nullLayer.property("ADBE Effect Parade").addProperty("ADBE Checkbox Control");
-                reelSymFx.name = "Reel " + rni + " Sym " + symi;
-                // Check the symbol that matches the default landing index for this reel
-                reelSymFx.property("ADBE Checkbox Control-0001").setValue(defaultSymIdx === symi - 1 ? 1 : 0);
-            }
+            var reelSymFx = nullLayer.property("ADBE Effect Parade").addProperty("ADBE Slider Control");
+            reelSymFx.name = "Reel " + rni + " Symbol";
+            reelSymFx.property("ADBE Slider Control-0001").setValue(landingIdxArr[rni - 1]);
 
             var reelWinFx = nullLayer.property("ADBE Effect Parade").addProperty("ADBE Checkbox Control");
             reelWinFx.name = "Reel " + rni + " Win";
-            reelWinFx.property("ADBE Checkbox Control-0001").setValue(1);   // default: all win
+            reelWinFx.property("ADBE Checkbox Control-0001").setValue(1);
         }
 
         // --- 7b: Reels_Group layer — static centre; internal expressions handle spreading ---
