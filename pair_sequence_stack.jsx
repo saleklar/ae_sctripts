@@ -165,10 +165,10 @@
             if (pairs[pi2].land.duration > maxLandDurSec) maxLandDurSec = pairs[pi2].land.duration;
             if (pairs[pi2].win.duration  > maxWinDurSec)  maxWinDurSec  = pairs[pi2].win.duration;
         }
-        var phaseBuf       = 2 / fr;                          // 2-frame tail buffer
-        var normStatDurSec = maxLandDurSec + phaseBuf;        // stat phase = same length as land
-        var normLandDurSec = maxLandDurSec + phaseBuf;        // land phase
-        var normWinDurSec  = maxWinDurSec  + phaseBuf;        // win  phase
+        // No buffer — phases are exact lengths; hold-last-frame via Time Remap on each layer.
+        var normStatDurSec = maxLandDurSec;  // stat phase = same length as longest land
+        var normLandDurSec = maxLandDurSec;  // land phase
+        var normWinDurSec  = maxWinDurSec;   // win  phase
 
         // ----------------------------------------------------------------
         // Helper: find a stat FootageItem by ID — looks for any FootageItem
@@ -223,22 +223,29 @@
                 statInPc.position.setValue([compSize / 2, compSize / 2]);
             }
 
-            // --- Land starts at normStatDurSec; outPoint extended to fill the phase ---
+            // --- Land: hold last frame for full phase via Time Remap ---
             var landInPc = pc.layers.add(landFtg);
             landInPc.startTime = normStatDurSec;
             landInPc.outPoint  = normStatDurSec + normLandDurSec;
             landInPc.position.setValue([compSize / 2, compSize / 2]);
+            landInPc.timeRemapEnabled = true;
+            landInPc.property("Time Remap").expression =
+                'Math.min(time - ' + normStatDurSec + ', ' + (landFtg.duration - 1/fr) + ');';
 
-            // --- Win starts after land phase; outPoint extended to fill the phase ---
+            // --- Win: hold last frame for full phase via Time Remap ---
             var winInPc = pc.layers.add(winFtg);
             winInPc.startTime = normStatDurSec + normLandDurSec;
             winInPc.outPoint  = normStatDurSec + normLandDurSec + normWinDurSec;
             winInPc.position.setValue([compSize / 2, compSize / 2]);
+            winInPc.timeRemapEnabled = true;
+            winInPc.property("Time Remap").expression =
+                'Math.min(time - ' + (normStatDurSec + normLandDurSec) + ', ' + (winFtg.duration - 1/fr) + ');';
 
             // --- Pop after win (if present) ---
             if (popFtg) {
                 var popInPc = pc.layers.add(popFtg);
                 popInPc.startTime = normStatDurSec + normLandDurSec + normWinDurSec;
+                popInPc.outPoint  = normStatDurSec + normLandDurSec + normWinDurSec + popFtg.duration;
                 popInPc.position.setValue([compSize / 2, compSize / 2]);
             }
 
@@ -271,9 +278,12 @@
             }
 
             var soloInPc = spc.layers.add(soloFtg);
-            soloInPc.startTime = normStatDurSec;   // uniform start after stat phase
-            soloInPc.outPoint  = normStatDurSec + normLandDurSec;  // hold to end of phase
+            soloInPc.startTime = normStatDurSec;
+            soloInPc.outPoint  = normStatDurSec + normLandDurSec;
             soloInPc.position.setValue([compSize / 2, compSize / 2]);
+            soloInPc.timeRemapEnabled = true;
+            soloInPc.property("Time Remap").expression =
+                'Math.min(time - ' + normStatDurSec + ', ' + (soloFtg.duration - 1/fr) + ');';
 
             precompItems.push(spc);
         }
