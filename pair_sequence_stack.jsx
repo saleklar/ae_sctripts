@@ -232,21 +232,24 @@
             landInPc.property("Time Remap").expression =
                 'Math.min(time - ' + normStatDurSec + ', ' + (landFtg.duration - 1/fr) + ');';
 
-            // --- Win: hold last frame for full phase via Time Remap ---
+            // --- Win: hold last frame via Time Remap; extend to end if no pop follows ---
             var winInPc = pc.layers.add(winFtg);
             winInPc.startTime = normStatDurSec + normLandDurSec;
-            winInPc.outPoint  = normStatDurSec + normLandDurSec + normWinDurSec;
+            winInPc.outPoint  = popFtg ? (normStatDurSec + normLandDurSec + normWinDurSec) : fixedDur;
             winInPc.position.setValue([compSize / 2, compSize / 2]);
             winInPc.timeRemapEnabled = true;
             winInPc.property("Time Remap").expression =
                 'Math.min(time - ' + (normStatDurSec + normLandDurSec) + ', ' + (winFtg.duration - 1/fr) + ');';
 
-            // --- Pop after win (if present) ---
+            // --- Pop after win (if present): hold last frame and extend to end of comp ---
             if (popFtg) {
                 var popInPc = pc.layers.add(popFtg);
                 popInPc.startTime = normStatDurSec + normLandDurSec + normWinDurSec;
-                popInPc.outPoint  = normStatDurSec + normLandDurSec + normWinDurSec + popFtg.duration;
+                popInPc.outPoint  = fixedDur;
                 popInPc.position.setValue([compSize / 2, compSize / 2]);
+                popInPc.timeRemapEnabled = true;
+                popInPc.property("Time Remap").expression =
+                    'Math.min(time - ' + (normStatDurSec + normLandDurSec + normWinDurSec) + ', ' + (popFtg.duration - 1/fr) + ');';
             }
 
             precompItems.push(pc);
@@ -279,7 +282,7 @@
 
             var soloInPc = spc.layers.add(soloFtg);
             soloInPc.startTime = normStatDurSec;
-            soloInPc.outPoint  = normStatDurSec + normLandDurSec;
+            soloInPc.outPoint  = fixedDur;  // freeze last frame to end of comp
             soloInPc.position.setValue([compSize / 2, compSize / 2]);
             soloInPc.timeRemapEnabled = true;
             soloInPc.property("Time Remap").expression =
