@@ -393,13 +393,13 @@
                     rl.label = cellLabels[ci % cellLabels.length];
                     rl.position.setValue([compSize / 2, baseY]);
 
-                    // Center cell: opacity driven live by Reel N Symbol slider in Master.
+                    // Center cell: opacity driven live by Reel N Sym SI checkbox in Master.
                     // Non-center cells: baked opacity — they are frozen at stat anyway.
                     if (ci === 2) {
                         rl.opacity.setValue(100);  // default visible; expression overrides
                         rl.opacity.expression =
-                            'var sym = Math.round(comp("Master").layer("Reel_Control").effect("Reel ' + reelNum + ' Symbol")("Slider"));' +
-                            'sym === ' + si + ' ? 100 : 0;';
+                            'comp("Master").layer("Reel_Control").effect("Reel ' + reelNum + ' Sym ' + (si + 1) + '")' +
+                            '("Checkbox") ? 100 : 0;';
                     } else {
                         rl.opacity.setValue(si === visIdx ? 100 : 0);
                     }
@@ -602,15 +602,17 @@
         spin2OffsetFx.name = "Spin 2 Offset";
         spin2OffsetFx.property("ADBE Slider Control-0001").setValue(2);
 
-        // Per-reel controls: Symbol (which precomp occupies the landing cell, 0-based)
-        // and Win (checkbox enables the win animation for that reel).
-        // Symbol is READ AT SCRIPT RUN TIME — change slider then re-run to update.
-        // Win checkbox is LIVE — toggle in Master comp to enable/disable win per reel.
+        // Per-reel controls: one Checkbox per symbol slot per reel (LIVE — toggle to swap symbol)
+        // and Win checkbox to enable/disable win animation per reel.
+        // Default: reel 1 → sym 1 checked, reel 2 → sym 2, … (wraps if fewer reels than syms).
         for (var rni = 1; rni <= numReels; rni++) {
-            var reelSymFx = nullLayer.property("ADBE Effect Parade").addProperty("ADBE Slider Control");
-            reelSymFx.name = "Reel " + rni + " Symbol";
-            // Default matches what buildReel used: reel 1 → sym 0, reel 2 → sym 1, …
-            reelSymFx.property("ADBE Slider Control-0001").setValue((rni - 1) % precompItems.length);
+            var defaultSymIdx = (rni - 1) % precompItems.length; // 0-based
+            for (var symi = 1; symi <= precompItems.length; symi++) {
+                var reelSymFx = nullLayer.property("ADBE Effect Parade").addProperty("ADBE Checkbox Control");
+                reelSymFx.name = "Reel " + rni + " Sym " + symi;
+                // Check the symbol that matches the default landing index for this reel
+                reelSymFx.property("ADBE Checkbox Control-0001").setValue(defaultSymIdx === symi - 1 ? 1 : 0);
+            }
 
             var reelWinFx = nullLayer.property("ADBE Effect Parade").addProperty("ADBE Checkbox Control");
             reelWinFx.name = "Reel " + rni + " Win";
