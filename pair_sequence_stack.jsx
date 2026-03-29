@@ -223,14 +223,16 @@
                 statInPc.position.setValue([compSize / 2, compSize / 2]);
             }
 
-            // --- Land starts at normStatDurSec (uniform across all precomps) ---
+            // --- Land starts at normStatDurSec; outPoint extended to fill the phase ---
             var landInPc = pc.layers.add(landFtg);
             landInPc.startTime = normStatDurSec;
+            landInPc.outPoint  = normStatDurSec + normLandDurSec;
             landInPc.position.setValue([compSize / 2, compSize / 2]);
 
-            // --- Win starts after land phase ---
+            // --- Win starts after land phase; outPoint extended to fill the phase ---
             var winInPc = pc.layers.add(winFtg);
             winInPc.startTime = normStatDurSec + normLandDurSec;
+            winInPc.outPoint  = normStatDurSec + normLandDurSec + normWinDurSec;
             winInPc.position.setValue([compSize / 2, compSize / 2]);
 
             // --- Pop after win (if present) ---
@@ -270,6 +272,7 @@
 
             var soloInPc = spc.layers.add(soloFtg);
             soloInPc.startTime = normStatDurSec;   // uniform start after stat phase
+            soloInPc.outPoint  = normStatDurSec + normLandDurSec;  // hold to end of phase
             soloInPc.position.setValue([compSize / 2, compSize / 2]);
 
             precompItems.push(spc);
@@ -369,14 +372,9 @@
                     '  [x, y];' +
                     '}';
 
-                // Scale each layer so it fits exactly within the symSize cell slot.
-                // compSize = symSize * 1.5, so unscaled layers overflow into adjacent cells.
-                var cellScale = symSize / compSize * 100;
-
                 for (var si = 0; si < n; si++) {
                     var rl = reel.layers.add(orderedItems[si]);
                     rl.position.setValue([compSize / 2, baseY]);
-                    rl.scale.setValue([cellScale, cellScale]);
                     rl.opacity.setValue(si === visIdx ? 100 : 0);
                     rl.position.expression = posExpr;
 
