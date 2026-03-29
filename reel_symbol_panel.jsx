@@ -139,7 +139,8 @@
 
     // ── Grid helpers ──────────────────────────────────────────────────────────
     // rowDDs[rowOffset][reelIdx]  offset: 0=top(above), 1=center(landing), 2=bottom(below)
-    var rowDDs = [[], [], []];
+    var rowDDs  = [[], [], []];
+    var _syncing = false;  // re-entrancy guard
 
     function clearGroup(g) { while (g.children.length) g.remove(g.children[0]); }
 
@@ -196,22 +197,23 @@
             for (var ri = 0; ri < REEL_COUNT; ri++) {
                 var dd = grp.add("dropdownlist", undefined, symNames);
                 dd.preferredSize = [COL_W, rowH];
-                (function (r2, dOffset, rowI) {
+                (function (r2, dOffset) {
                     dd.onChange = function () {
-                        if (!dd.selection) return;
+                        if (_syncing || !dd.selection) return;
                         var n2 = symNames.length;
                         var picked = dd.selection.index;
                         // convert picked position to landing index
                         var newLanding = ((picked - dOffset) % n2 + n2) % n2;
                         curSel[r2] = newLanding;
-                        syncReel(r2);
+                        _syncing = true;
+                        try { syncReel(r2); } finally { _syncing = false; }
                         var ok = writeSlider(_rc, r2, newLanding);
                         updateStatus(
                             ok ? "\u2714  Reel " + (r2 + 1) + " \u2192 " + symNames[newLanding]
                                : "\u26A0  Could not write to Reel_Control"
                         );
                     };
-                })(ri, def.offset, rowIdx);
+                })(ri, def.offset);
                 rowDDs[rowIdx][ri] = dd;
             }
         }
