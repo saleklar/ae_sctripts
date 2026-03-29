@@ -136,25 +136,28 @@
         }
     }
 
-    // â”€â”€ Grid helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    // ── Grid helpers ──────────────────────────────────────────────────────────
+    var cellBtns = [];  // cellBtns[symIdx][reelIdx] = button widget
+
     function clearGroup(g) { while (g.children.length) g.remove(g.children[0]); }
 
-    function adjName(symIdx, offset) {
+    function markSelected() {
         var n = symNames.length;
-        if (n === 0) return "";
-        return symNames[((symIdx + offset) % n + n) % n];
+        for (var s = 0; s < n; s++) {
+            for (var r = 0; r < REEL_COUNT; r++) {
+                if (!cellBtns[s] || !cellBtns[s][r]) continue;
+                cellBtns[s][r].text = (curSel[r] === s)
+                    ? "\u25CF " + symNames[s]
+                    : symNames[s];
+            }
+        }
     }
 
-    function updateAdj(ri) {
-        var si = curSel[ri] || 0;
-        if (topLabels[ri]) topLabels[ri].text = adjName(si, -1);
-        if (botLabels[ri]) botLabels[ri].text = adjName(si,  1);
-    }
-
-    // â”€â”€ Grid builder (3 rows x 5 cols) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Grid builder (all N symbol rows x 5 reel cols) ────────────────────────
     function buildGrid(rc) {
         clearGroup(gridGroup);
-        ddList = []; topLabels = []; botLabels = [];
+        cellBtns = [];
         var n = symNames.length;
         if (n === 0) return;
 
@@ -162,76 +165,40 @@
         var hdrRow = gridGroup.add("group");
         hdrRow.orientation = "row"; hdrRow.spacing = 2;
         var corner = hdrRow.add("statictext", undefined, "");
-        corner.preferredSize = [LABEL_W, ROW_H];
+        corner.preferredSize = [LABEL_W * 2, ROW_H];
         for (var r = 0; r < REEL_COUNT; r++) {
             var h = hdrRow.add("statictext", undefined, "Reel " + (r + 1));
             h.preferredSize = [COL_W, ROW_H]; h.justify = "center";
             h.graphics.font = ScriptUI.newFont("dialog", "BOLD", 10);
         }
 
-        // Top row: symbol above landing (read-only)
-        var topRow = gridGroup.add("group");
-        topRow.orientation = "row"; topRow.spacing = 2;
-        var tLbl = topRow.add("statictext", undefined, "\u25B2");
-        tLbl.preferredSize = [LABEL_W, ROW_H];
-        for (var r2 = 0; r2 < REEL_COUNT; r2++) {
-            var tp = topRow.add("panel", undefined, "");
-            tp.preferredSize = [COL_W, ROW_H];
-            tp.alignChildren = ["center", "center"]; tp.margins = [2, 2, 2, 2];
-            var tl = tp.add("statictext", undefined, "--");
-            tl.preferredSize = [COL_W - 8, ROW_H - 6]; tl.justify = "center";
-            topLabels[r2] = tl;
-        }
-
-        // Center row: landing symbol â€” dropdown per reel
-        var ctrRow = gridGroup.add("group");
-        ctrRow.orientation = "row"; ctrRow.spacing = 2;
-        var cLbl = ctrRow.add("statictext", undefined, "\u25C6");
-        cLbl.preferredSize = [LABEL_W, CTR_H];
-        cLbl.graphics.font = ScriptUI.newFont("dialog", "BOLD", 11);
-        for (var r3 = 0; r3 < REEL_COUNT; r3++) {
-            var dd = ctrRow.add("dropdownlist", undefined, symNames);
-            dd.preferredSize = [COL_W, CTR_H];
-            dd.selection     = Math.max(0, Math.min(curSel[r3] || 0, n - 1));
-            (function (ri, layer) {
-                dd.onChange = function () {
-                    if (!dd.selection) return;
-                    var si = dd.selection.index;
-                    curSel[ri] = si;
-                    updateAdj(ri);
-                    var ok = writeSlider(layer, ri, si);
-                    updateStatus(
-                        ok ? "\u2714  Reel " + (ri + 1) + " \u2192 " + (symItems[si] || si)
-                           : "\u26A0  Could not write to Reel_Control"
-                    );
-                };
-            })(r3, rc);
-            ddList[r3] = dd;
-        }
-
-        // Bottom row: symbol below landing (read-only)
-        var botRow = gridGroup.add("group");
-        botRow.orientation = "row"; botRow.spacing = 2;
-        var bLbl = botRow.add("statictext", undefined, "\u25BC");
-        bLbl.preferredSize = [LABEL_W, ROW_H];
-        for (var r4 = 0; r4 < REEL_COUNT; r4++) {
-            var bp = botRow.add("panel", undefined, "");
-            bp.preferredSize = [COL_W, ROW_H];
-            bp.alignChildren = ["center", "center"]; bp.margins = [2, 2, 2, 2];
-            var bl = bp.add("statictext", undefined, "--");
-            bl.preferredSize = [COL_W - 8, ROW_H - 6]; bl.justify = "center";
-            botLabels[r4] = bl;
+        // One row per symbol position
+        for (var si = 0; si < n; si++) {
+            var row = gridGroup.add("group");
+            row.orientation = "row"; row.spacing = 2;
+            var lbl = row.add("statictext", undefined, String(si + 1));
+            lbl.preferredSize = [LABEL_W * 2, ROW_H]; lbl.justify = "right";
+            cellBtns[si] = [];
+            for (var ri = 0; ri < REEL_COUNT; ri++) {
+                var btn = row.add("button", undefined, symNames[si]);
+                btn.preferredSize = [COL_W, ROW_H];
+                (function (s, r2, layer) {
+                    btn.onClick = function () {
+                        curSel[r2] = s;
+                        var ok = writeSlider(layer, r2, s);
+                        markSelected();
+                        updateStatus(
+                            ok ? "\u2714  Reel " + (r2 + 1) + " \u2192 " + symNames[s]
+                               : "\u26A0  Could not write to Reel_Control"
+                        );
+                    };
+                })(si, ri, rc);
+                cellBtns[si][ri] = btn;
+            }
         }
     }
 
-    function applyAll() {
-        var n = symNames.length;
-        for (var r = 0; r < REEL_COUNT; r++) {
-            var si = Math.max(0, Math.min(curSel[r] || 0, n - 1));
-            if (ddList[r]) ddList[r].selection = si;
-            updateAdj(r);
-        }
-    }
+    function applyAll() { markSelected(); }
 
     function updateStatus(msg) { if (_statusTxt) _statusTxt.text = msg; }
 
