@@ -645,6 +645,11 @@
                     curLaunchT = bubbleCells[bdi2].arrivalT;  // next launches when this one arrives
                 }
 
+                // Time Remap expressions are accumulated across ALL bubbles then written once,
+                // so each slot shows the correct symbol for every time window.
+                var slotTRParts = [[], [], [], []];
+                var slotTRInit  = [shelfTimes3[0], shelfTimes3[1], shelfTimes3[2], shelfTimes3[3]];
+
                 for (var bi = 0; bi < bubbleCells.length; bi++) {
                     var bc       = bubbleCells[bi];
                     var launchT  = bc.launchT;
@@ -781,18 +786,11 @@
                                 } catch(eS4B) {}
                             }
 
-                            // Time Remap: hold own stat throughout the physical move.
-                            // Slots 1-3 swap content at snap-back (position illusion complete).
-                            // Slot 4 waits until the flying bubble's landing animation finishes.
-                            var swapT       = (ssiB < 4)
-                                                ? touchT + shiftDurB + fd
-                                                : arrivalT + landDurB;
-                            var oldStatTR   = shelfTimes3[ssiB - 1];
-                            var afterSwapTR = (ssiB < 4) ? shelfTimes3[ssiB] : (statTB >= 0 ? statTB : 0);
-                            try {
-                                ssLL.property("Time Remap").expression =
-                                    'time < ' + swapT + ' ? ' + oldStatTR + ' : ' + afterSwapTR + ';';
-                            } catch(e3B) {}
+                            // Collect Time Remap swap point for this slot/bubble
+                            // (written after the bi loop so all thresholds are known)
+                            var swapT2    = (ssiB < 4) ? touchT + shiftDurB + fd : arrivalT + landDurB;
+                            var newTR2    = (ssiB < 4) ? shelfTimes3[ssiB] : (statTB >= 0 ? statTB : 0);
+                            slotTRParts[ssiB - 1].push({ swapT: swapT2, tr: newTR2 });
                         }
 
                         // Advance shelf state for next bubble in this batch
@@ -806,6 +804,25 @@
                     }
 
                     flyLog.push("Cell " + bc.ci + ": " + bc.clip);
+                }
+
+                // Write shelf Time Remap expressions once — piecewise over all bubble swap points
+                if (shelfCompB) {
+                    for (var wrS = 1; wrS <= 4; wrS++) {
+                        var wrLL = null;
+                        for (var wrLi = 1; wrLi <= shelfCompB.layers.length; wrLi++) {
+                            if (shelfCompB.layers[wrLi].name === "shelf_cell_" + wrS) { wrLL = shelfCompB.layers[wrLi]; break; }
+                        }
+                        if (!wrLL) continue;
+                        var wrParts = slotTRParts[wrS - 1];
+                        var wrExpr = '';
+                        for (var pi = 0; pi < wrParts.length; pi++) {
+                            var beforeTR = (pi === 0) ? slotTRInit[wrS - 1] : wrParts[pi - 1].tr;
+                            wrExpr += 'time < ' + wrParts[pi].swapT + ' ? ' + beforeTR + ' : ';
+                        }
+                        wrExpr += (wrParts.length > 0) ? (wrParts[wrParts.length - 1].tr + ';') : (slotTRInit[wrS - 1] + ';');
+                        try { wrLL.property("Time Remap").expression = wrExpr; } catch(eWR) {}
+                    }
                 }
 
                 statusTxt.text = "Bubble Fly @ " + t0.toFixed(3) + "s  \u2014  " + flyLog.join("  |  ");
