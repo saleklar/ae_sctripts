@@ -53,7 +53,10 @@
             '        var lt = lm.key(li).time;' +
             '        if (lt <= se && lt > sbTime) { sbTime = lt; sbName = lm.key(li).comment; }' +
             '      }' +
-            '      autoLandClip = (sbName !== "") ? sbName.split("_")[0] + "_land" : "";' +
+            '      if (sbName !== "") {' +
+            '        var _li = sbName.lastIndexOf("_");' +
+            '        autoLandClip = (_li >= 0) ? sbName.substring(0, _li) + "_land" : sbName + "_land";' +
+            '      } else { autoLandClip = ""; }' +
             '    }' +
             '  }' +
             '}' +
