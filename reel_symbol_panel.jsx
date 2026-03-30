@@ -189,18 +189,33 @@
     // ── Spin navigator helpers ────────────────────────────────────────────────
     function _getSpinTimes() {
         var times = [];
-        try {
-            for (var i = 1; i <= app.project.items.length; i++) {
+        var masterComp = null;
+        for (var i = 1; i <= app.project.items.length; i++) {
+            try {
                 var it = app.project.items[i];
-                if (it instanceof CompItem && it.name === "Master") {
-                    var mm = it.markerProperty;
-                    for (var mi = 1; mi <= mm.numKeys; mi++) {
-                        if (mm.key(mi).comment === "spin_start") times.push(mm.key(mi).time);
-                    }
-                    break;
-                }
-            }
-        } catch (e) {}
+                if (it instanceof CompItem && it.name === "Master") { masterComp = it; break; }
+            } catch (e) {}
+        }
+        if (!masterComp) return times;
+
+        // Try both access patterns AE versions use
+        var mm = null;
+        try { mm = masterComp.markerProperty; } catch (e) {}
+        if (!mm) { try { mm = masterComp.property("Marker"); } catch (e) {} }
+        if (!mm) return times;
+
+        var nk = 0;
+        try { nk = mm.numKeys; } catch (e) {}
+        for (var mi = 1; mi <= nk; mi++) {
+            try {
+                var kt = mm.keyTime(mi);
+                // keyValue() returns the MarkerValue; .key().value also works in newer AE
+                var mv = null;
+                try { mv = mm.keyValue(mi); } catch (e) { mv = mm.key(mi).value; }
+                var cmt = mv ? mv.comment : "";
+                if (cmt === "spin_start") times.push(kt);
+            } catch (e) {}
+        }
         times.sort(function (a, b) { return a - b; });
         return times;
     }
