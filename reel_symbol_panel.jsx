@@ -36,6 +36,7 @@
     var _spinIdx    = 0;     // 0-based index into spin_start markers
     var _spinLbl    = null;  // statictext showing current spin
     var _winChartLb = null;  // listbox for Win/Pop Schedule chart
+    var symIcons    = [];    // ScriptUIImage per symbol index (null if unavailable)
 
     // ── Build UI ─────────────────────────────────────────────────────────────
     function buildUI(host) {
@@ -399,6 +400,33 @@
     var rowDDs  = [[], [], []];
     var _syncing = false;  // re-entrancy guard
 
+    // ── Symbol icon loader ────────────────────────────────────────────────────
+    // For each symbol comp, find its matching stat PNG FootageItem by ID number
+    // and load it as a ScriptUIImage so dropdowns can show a small thumbnail.
+    function buildSymIconMap() {
+        var icons = [];
+        for (var i = 0; i < symItems.length; i++) {
+            icons.push(null);
+            var idMatch = symItems[i].match(/(\d+)/);
+            if (!idMatch) continue;
+            var id = idMatch[1];
+            var idPat = new RegExp('(^|[^\\d])' + id + '([^\\d]|$)');
+            try {
+                for (var fi = 1; fi <= app.project.items.length; fi++) {
+                    var fitem = app.project.items[fi];
+                    if (!(fitem instanceof FootageItem)) continue;
+                    var fn = fitem.name.toLowerCase();
+                    if (fn.indexOf('stat') === -1 || !idPat.test(fn)) continue;
+                    if (fitem.file) {
+                        try { icons[i] = ScriptUI.newImage(fitem.file); } catch (ie) {}
+                    }
+                    break;
+                }
+            } catch (e) {}
+        }
+        return icons;
+    }
+
     function clearGroup(g) { while (g.children.length) g.remove(g.children[0]); }
 
     // Sync all 3 dropdowns for reel ri from curSel — each row is independent
@@ -449,7 +477,11 @@
             if (rowIdx === 1) lbl.graphics.font = ScriptUI.newFont("dialog", "BOLD", 12);
 
             for (var ri = 0; ri < REEL_COUNT; ri++) {
-                var dd = grp.add("dropdownlist", undefined, symNames);
+                var dd = grp.add("dropdownlist", undefined, []);
+                for (var ii = 0; ii < symNames.length; ii++) {
+                    var itm = dd.add("item", symNames[ii]);
+                    if (symIcons[ii]) { try { itm.image = symIcons[ii]; } catch (e) {} }
+                }
                 dd.preferredSize = [COL_W, rowH];
                 // All 3 rows are independently interactive — each writes to its own slider
                 (function (r2, rowI, thisDd) {
@@ -493,6 +525,7 @@
         }
 
         curSel = readSliders(_rc);
+        symIcons = buildSymIconMap();
         buildGrid(_rc);
         syncAll();
         updateStatus("\u2714  " + symNames.length + " symbols, " + REEL_COUNT + " reels \u2014 connected");
