@@ -1,115 +1,206 @@
-// Apply Trigger Remap
-// Select the Symbol_Sequence layer (or any layer whose source is a comp
-// with named clip markers) in the active composition, then run this script.
-//
-// It enables Time Remap on that layer and applies an expression that:
-//   - Reads time markers on the MAIN comp (e.g. "4_win", "2_stat")
-//   - On each marker, jumps to the matching clip inside Symbol_Sequence
-//   - Plays the clip in real time
-//   - Holds the last frame after the clip ends, until the next marker fires
+// Trigger Remap Panel
+// Dockable ScriptUI panel.
+// 1. Click "Setup Remap" to add Symbol_Sequence to Master comp and apply
+//    the time-remap expression that responds to named markers.
+// 2. Pick a clip from the dropdown and click "Place Marker" to stamp
+//    that clip name as a marker at the current Master comp playhead position.
+// 3. Click "Refresh" to reload the clip list from Symbol_Sequence markers.
 
-(function () {
+(function (thisObj) {
 
-    if (!app.project) { alert("No project open."); return; }
-
-    var mainComp = app.project.activeItem;
-    if (!mainComp || !(mainComp instanceof CompItem)) {
-        alert("Please activate the composition that contains the Symbol_Sequence layer.");
-        return;
+    // ----------------------------------------------------------------
+    // Helpers
+    // ----------------------------------------------------------------
+    function findComp(name) {
+        if (!app.project) return null;
+        for (var i = 1; i <= app.project.items.length; i++) {
+            try {
+                var it = app.project.items[i];
+                if ((it instanceof CompItem) && it.name === name) return it;
+            } catch (e) {}
+        }
+        return null;
     }
 
-    // Find the selected layer
-    var sel = mainComp.selectedLayers;
-    if (sel.length === 0) {
-        alert("Please select the Symbol_Sequence layer first.");
-        return;
-    }
-
-    var seqLayer = sel[0];
-    if (!(seqLayer.source instanceof CompItem)) {
-        alert("Selected layer is not a composition layer.\nSelect the Symbol_Sequence layer.");
-        return;
-    }
-
-    var seqComp = seqLayer.source;
-
-    // Count how many named markers the source comp has — used as sanity check
-    var numMarkers = seqComp.markerProperty.numKeys;
-    if (numMarkers === 0) {
-        alert(
-            "\"" + seqComp.name + "\" has no markers.\n\n" +
-            "Run import_precomps_to_comp.jsx first so clip markers are created."
-        );
-        return;
-    }
-
-    try {
-        app.beginUndoGroup("Apply Trigger Remap");
-
-        // Enable Time Remap — this creates keyframes at in/out points
-        seqLayer.timeRemapEnabled = true;
-
-        // The expression runs on the Time Remap property of seqLayer in mainComp.
-        // thisComp  = main comp (has trigger markers like "4_win")
-        // thisLayer = the Symbol_Sequence layer
-        // thisLayer.source = Symbol_Sequence comp (has clip-start markers)
-        var expr =
-            // --- Find the most recently passed trigger marker in the main comp ---
-            'var trigName = "";' +
-            'var trigTime = -1;' +
+    function buildTimeRemapExpr(seqName) {
+        return (
+            'var trigName = ""; var trigTime = -1;' +
             'var mm = thisComp.marker;' +
             'for (var mi = 1; mi <= mm.numKeys; mi++) {' +
             '  var mt = mm.key(mi).time;' +
             '  if (mt <= time && mt > trigTime) { trigTime = mt; trigName = mm.key(mi).comment; }' +
             '}' +
-
-            // --- No trigger marker has passed yet: hold frame 0 ---
             'if (trigName === "" || trigTime < 0) {' +
             '  0;' +
             '} else {' +
-
-            // --- Look up clip start in Symbol_Sequence markers ---
-            '  var sm = thisLayer.source.marker;' +
+            '  var sm = comp("' + seqName + '").marker;' +
             '  var clipStart = -1;' +
-            '  var clipEnd   = thisLayer.source.duration;' +
+            '  var clipEnd   = comp("' + seqName + '").duration;' +
             '  for (var si = 1; si <= sm.numKeys; si++) {' +
             '    if (sm.key(si).comment === trigName) {' +
             '      clipStart = sm.key(si).time;' +
-            '      clipEnd   = (si < sm.numKeys) ? sm.key(si + 1).time : thisLayer.source.duration;' +
+            '      clipEnd   = (si < sm.numKeys) ? sm.key(si+1).time : comp("' + seqName + '").duration;' +
             '      break;' +
             '    }' +
             '  }' +
-
-            // --- Marker name not found: hold frame 0 ---
             '  if (clipStart < 0) {' +
             '    0;' +
             '  } else {' +
             '    var elapsed = time - trigTime;' +
-            '    var fd      = thisComp.frameDuration;' +
-            // Play through clip duration, then hold 1 frame before end (avoids out-point gap)
-            '    Math.min(clipStart + elapsed, clipEnd - fd);' +
+            '    Math.min(clipStart + elapsed, clipEnd - thisComp.frameDuration);' +
             '  }' +
-            '}';
-
-        seqLayer.property("Time Remap").expression = expr;
-
-        alert(
-            "Done!\n\n" +
-            "Time Remap expression applied to \"" + seqLayer.name + "\".\n\n" +
-            "Available trigger names (" + numMarkers + " clips):\n" +
-            (function () {
-                var names = [];
-                for (var mi = 1; mi <= numMarkers; mi++)
-                    names.push("  " + seqComp.markerProperty.key(mi).comment);
-                return names.join("\n");
-            })() + "\n\n" +
-            "Add these as time marker comments in \"" + mainComp.name + "\" to trigger each clip."
+            '}'
         );
-
-    } catch (e) {
-        alert("Error: " + e.toString() + (e.line ? "\nLine: " + e.line : ""));
-    } finally {
-        app.endUndoGroup();
     }
 
-})();
+    // ----------------------------------------------------------------
+    // Build UI
+    // ----------------------------------------------------------------
+    function buildUI(win) {
+        win.orientation = "column";
+        win.alignChildren = ["fill", "top"];
+        win.spacing = 6;
+        win.margins = 8;
+
+        // Status bar
+        var statusTxt = win.add("statictext", undefined, "No project open", { truncate: "end" });
+        statusTxt.alignment = ["fill", "top"];
+
+        win.add("panel").preferredSize.height = 1; // divider
+
+        // Setup button
+        var setupBtn = win.add("button", undefined, "Setup Remap (Master + Symbol_Sequence)");
+        setupBtn.helpTip = "Adds Symbol_Sequence to Master comp and applies Time Remap expression";
+
+        win.add("panel").preferredSize.height = 1; // divider
+
+        // Dropdown + place marker row
+        var row = win.add("group");
+        row.orientation = "row";
+        row.alignChildren = ["fill", "center"];
+        row.spacing = 4;
+
+        var dd = row.add("dropdownlist", undefined, []);
+        dd.alignment = ["fill", "center"];
+        dd.preferredSize.width = 160;
+
+        var placeBtn = row.add("button", undefined, "Place Marker");
+        placeBtn.preferredSize.width = 100;
+
+        // Refresh button
+        var refreshBtn = win.add("button", undefined, "⟳ Refresh Clip List");
+
+        // ----------------------------------------------------------------
+        // Logic
+        // ----------------------------------------------------------------
+        function refreshList() {
+            dd.removeAll();
+            var seqComp = findComp("Symbol_Sequence");
+            if (!seqComp) {
+                statusTxt.text = "Symbol_Sequence not found";
+                return;
+            }
+            var nm = seqComp.markerProperty.numKeys;
+            if (nm === 0) {
+                statusTxt.text = "Symbol_Sequence has no markers";
+                return;
+            }
+            for (var mi = 1; mi <= nm; mi++) {
+                dd.add("item", seqComp.markerProperty.key(mi).comment);
+            }
+            dd.selection = 0;
+            statusTxt.text = nm + " clips loaded from Symbol_Sequence";
+        }
+
+        setupBtn.onClick = function () {
+            if (!app.project) { alert("No project open."); return; }
+
+            var masterComp = findComp("Master");
+            var seqComp    = findComp("Symbol_Sequence");
+
+            if (!masterComp) { alert("No \"Master\" comp found."); return; }
+            if (!seqComp)    { alert("No \"Symbol_Sequence\" comp found.\nRun import_precomps_to_comp.jsx first."); return; }
+            if (seqComp.markerProperty.numKeys === 0) {
+                alert("Symbol_Sequence has no clip markers.\nRe-run import_precomps_to_comp.jsx.");
+                return;
+            }
+
+            try {
+                app.beginUndoGroup("Setup Trigger Remap");
+
+                // Find or add the Symbol_Sequence layer in Master
+                var seqLayer = null;
+                for (var li = 1; li <= masterComp.layers.length; li++) {
+                    var l = masterComp.layers[li];
+                    if ((l.source instanceof CompItem) && l.source.name === "Symbol_Sequence") {
+                        seqLayer = l; break;
+                    }
+                }
+                if (!seqLayer) {
+                    seqLayer = masterComp.layers.add(seqComp);
+                    seqLayer.startTime = 0;
+                    seqLayer.position.setValue([masterComp.width / 2, masterComp.height / 2]);
+                }
+
+                seqLayer.timeRemapEnabled = true;
+                seqLayer.property("Time Remap").expression = buildTimeRemapExpr(seqComp.name);
+
+                statusTxt.text = "Remap applied to Master! Place markers to trigger clips.";
+                refreshList();
+            } catch (e) {
+                alert("Error: " + e.toString());
+            } finally {
+                app.endUndoGroup();
+            }
+        };
+
+        placeBtn.onClick = function () {
+            if (!dd.selection) { alert("Select a clip from the list first."); return; }
+            if (!app.project)  { alert("No project open."); return; }
+
+            var masterComp = findComp("Master");
+            if (!masterComp) { alert("No \"Master\" comp found."); return; }
+
+            var clipName = dd.selection.text;
+            var t = masterComp.time;
+
+            try {
+                app.beginUndoGroup("Place Trigger Marker");
+                var mv = new MarkerValue(clipName);
+                masterComp.markerProperty.setValueAtTime(t, mv);
+                statusTxt.text = "Marker \"" + clipName + "\" placed at " + t.toFixed(3) + "s";
+            } catch (e) {
+                alert("Error placing marker: " + e.toString());
+            } finally {
+                app.endUndoGroup();
+            }
+        };
+
+        refreshBtn.onClick = function () { refreshList(); };
+
+        // Initial load
+        refreshList();
+
+        return win;
+    }
+
+    // ----------------------------------------------------------------
+    // Launch as panel or floating window
+    // ----------------------------------------------------------------
+    var win;
+    if (thisObj instanceof Panel) {
+        win = thisObj;
+    } else {
+        win = new Window("palette", "Trigger Remap", undefined, { resizeable: true });
+    }
+
+    buildUI(win);
+
+    if (win instanceof Window) {
+        win.center();
+        win.show();
+    } else {
+        win.layout.layout(true);
+    }
+
+}(this));
