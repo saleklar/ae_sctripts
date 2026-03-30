@@ -418,7 +418,16 @@
                     var fn = fitem.name.toLowerCase();
                     if (fn.indexOf('stat') === -1 || !idPat.test(fn)) continue;
                     if (fitem.file) {
-                        try { icons[i] = ScriptUI.newImage(fitem.file); } catch (ie) {}
+                        // Crop a 20×20 thumbnail from the center of the stat PNG
+                        // so dropdown icons stay small and fit the panel rows.
+                        try {
+                            var iw = fitem.width  || 20;
+                            var ih = fitem.height || 20;
+                            var ICON_PX = 20;
+                            var cx = Math.max(0, Math.floor(iw / 2) - Math.floor(ICON_PX / 2));
+                            var cy = Math.max(0, Math.floor(ih / 2) - Math.floor(ICON_PX / 2));
+                            icons[i] = ScriptUI.newImage([fitem.file.fsName, cx, cy, ICON_PX, ICON_PX]);
+                        } catch (ie) {}
                     }
                     break;
                 }
