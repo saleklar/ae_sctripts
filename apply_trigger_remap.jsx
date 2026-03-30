@@ -767,6 +767,20 @@
                                 } catch(eOiB) {}
                             }
 
+                            // Slot 4: hide while fly layer's land animation is playing
+                            if (ssiB === 4) {
+                                var s4OpB = ssLL.property("Opacity");
+                                s4OpB.setValueAtTime(arrivalT - fd, 100);
+                                s4OpB.setValueAtTime(arrivalT,        0);
+                                s4OpB.setValueAtTime(arrivalT + landDurB - fd,  0);
+                                s4OpB.setValueAtTime(arrivalT + landDurB,      100);
+                                try {
+                                    for (var k4i = 1; k4i <= s4OpB.numKeys; k4i++) {
+                                        s4OpB.setInterpolationTypeAtKey(k4i, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
+                                    }
+                                } catch(eS4B) {}
+                            }
+
                             // Time Remap: hold own stat throughout the physical move.
                             // Slots 1-3 swap content at snap-back (position illusion complete).
                             // Slot 4 waits until the flying bubble's landing animation finishes.
