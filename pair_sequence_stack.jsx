@@ -410,14 +410,26 @@
                     rl.label = cellLabels[ci % cellLabels.length];
                     rl.position.setValue([compSize / 2, baseY]);
 
-                    // Center cell: opacity driven live by Reel N Symbol slider in Master.
-                    // Slider value (0-based int) == si → layer visible, else hidden.
-                    // Non-center cells: baked opacity — they are frozen at stat anyway.
-                    if (ci === 2) {
+                    // ci=1 (above), ci=2 (center/landing), ci=3 (below) are all independently
+                    // expression-driven so the panel can control each row live.
+                    // ci=0 and ci=4 are outer cells outside the matte — baked and always off.
+                    if (ci === 1) {
+                        rl.opacity.setValue(100);
+                        rl.opacity.expression =
+                            'var sym = Math.round(comp("Master").layer("Reel_Control")' +
+                            '.effect("Reel ' + reelNum + ' Above")("Slider"));' +
+                            'sym === ' + si + ' ? 100 : 0;';
+                    } else if (ci === 2) {
                         rl.opacity.setValue(100);
                         rl.opacity.expression =
                             'var sym = Math.round(comp("Master").layer("Reel_Control")' +
                             '.effect("Reel ' + reelNum + ' Symbol")("Slider"));' +
+                            'sym === ' + si + ' ? 100 : 0;';
+                    } else if (ci === 3) {
+                        rl.opacity.setValue(100);
+                        rl.opacity.expression =
+                            'var sym = Math.round(comp("Master").layer("Reel_Control")' +
+                            '.effect("Reel ' + reelNum + ' Below")("Slider"));' +
                             'sym === ' + si + ' ? 100 : 0;';
                     } else {
                         rl.opacity.setValue(si === visIdx ? 100 : 0);
@@ -671,12 +683,25 @@
         spin2OffsetFx.name = "Spin 2 Offset";
         spin2OffsetFx.property("ADBE Slider Control-0001").setValue(2);
 
-        // Per-reel controls: one Symbol slider (0-based index, drag to change live)
-        // + one Win checkbox per reel.  Slider value reflects the grid selection made above.
+        // Per-reel controls: Above / Symbol / Below sliders (0-based index) + Win checkbox.
+        // Above = symbol shown in the row above the landing cell (ci=1).
+        // Symbol = landing cell (ci=2).
+        // Below = symbol shown in the row below the landing cell (ci=3).
+        var numSymbols = precompItems.length;
         for (var rni = 1; rni <= numReels; rni++) {
+            var landing2 = landingIdxArr[rni - 1];
+
+            var reelAboveFx = nullLayer.property("ADBE Effect Parade").addProperty("ADBE Slider Control");
+            reelAboveFx.name = "Reel " + rni + " Above";
+            reelAboveFx.property("ADBE Slider Control-0001").setValue((landing2 - 1 + numSymbols) % numSymbols);
+
             var reelSymFx = nullLayer.property("ADBE Effect Parade").addProperty("ADBE Slider Control");
             reelSymFx.name = "Reel " + rni + " Symbol";
-            reelSymFx.property("ADBE Slider Control-0001").setValue(landingIdxArr[rni - 1]);
+            reelSymFx.property("ADBE Slider Control-0001").setValue(landing2);
+
+            var reelBelowFx = nullLayer.property("ADBE Effect Parade").addProperty("ADBE Slider Control");
+            reelBelowFx.name = "Reel " + rni + " Below";
+            reelBelowFx.property("ADBE Slider Control-0001").setValue((landing2 + 1) % numSymbols);
 
             var reelWinFx = nullLayer.property("ADBE Effect Parade").addProperty("ADBE Checkbox Control");
             reelWinFx.name = "Reel " + rni + " Win";

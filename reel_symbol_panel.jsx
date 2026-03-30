@@ -24,7 +24,7 @@
     // ── State ───────────────────────────────────────────────────────────────
     var symNames   = [];   // short display names  e.g. "01"
     var symItems   = [];   // full comp names       e.g. "Pair_01"
-    var curSel     = [];   // curSel[reel] = 0-based symIdx
+    var curSel     = [[], [], []]; // curSel[rowIdx][reelIdx]  0=above 1=center 2=below
     var ddList     = [];   // ddList[reel] = dropdownlist widget
     var topLabels  = [];   // topLabels[reel] = statictext (symbol above landing)
     var botLabels  = [];   // botLabels[reel] = statictext (symbol below landing)
@@ -92,12 +92,14 @@
             if (!freshRc) { updateStatus("\u26A0 Not connected"); return; }
             _rc = freshRc;
             var lastErr = null;
-            for (var r = 0; r < REEL_COUNT; r++) {
-                var res = writeSlider(_rc, r, curSel[r] || 0);
-                if (res !== true) lastErr = res;
+            for (var row = 0; row < 3; row++) {
+                for (var r = 0; r < REEL_COUNT; r++) {
+                    var res = writeSlider(r, row, (curSel[row][r] || 0));
+                    if (res !== true) lastErr = res;
+                }
             }
             if (lastErr) { updateStatus("\u26A0 " + lastErr); return; }
-            var t = _keyMode
+            var t = _keyMode && _rc
                 ? " at " + _fmtTime(_rc.containingComp.time, _rc.containingComp.frameRate)
                 : "";
             updateStatus("\u2714 All reels set" + t);
@@ -181,30 +183,35 @@
     }
 
     function readSliders(rcLayer) {
-        var sel = [];
-        for (var r = 1; r <= REEL_COUNT; r++) {
-            try {
-                var v = rcLayer.effect("Reel " + r + " Symbol")("Slider").value;
-                sel.push(Math.round(v));
-            } catch (e) {
-                sel.push(0);
+        // Returns 2D array: sel[rowIdx][reelIdx].  Rows: 0=Above, 1=Symbol, 2=Below.
+        var rowNames = ["Above", "Symbol", "Below"];
+        var sel = [[], [], []];
+        for (var row = 0; row < 3; row++) {
+            for (var r = 1; r <= REEL_COUNT; r++) {
+                try {
+                    var v = rcLayer.effect("Reel " + r + " " + rowNames[row])("Slider").value;
+                    sel[row].push(Math.round(v));
+                } catch (e) {
+                    sel[row].push(0);
+                }
             }
         }
         return sel;
     }
 
-    function writeSlider(rcLayer, reelIdx, symIdx) {
+    function writeSlider(reelIdx, rowIdx, symIdx) {
+        // rowIdx: 0=Above, 1=Symbol(landing), 2=Below
+        var rowNames = ["Above", "Symbol", "Below"];
+        var sliderName = "Reel " + (reelIdx + 1) + " " + rowNames[rowIdx];
         try {
-            // Always fetch a fresh handle — cached refs go stale after undo/comp changes
             var freshRc = getMasterReelControl();
             if (!freshRc) return "Reel_Control layer not found";
-            _rc = freshRc;  // keep cache up to date
+            _rc = freshRc;
             app.beginUndoGroup("Reel Symbol Chart: set reel");
-            var prop = freshRc.effect("Reel " + (reelIdx + 1) + " Symbol")("Slider");
+            var prop = freshRc.effect(sliderName)("Slider");
             if (_keyMode) {
                 var t = freshRc.containingComp.time;
                 prop.setValueAtTime(t, symIdx);
-                // Make it a hold keyframe so the value jumps instantly (no interpolation)
                 var ki = prop.nearestKeyIndex(t);
                 prop.setInterpolationTypeAtKey(ki, KeyframeInterpolationType.HOLD);
             } else {
@@ -309,16 +316,13 @@
 
     function clearGroup(g) { while (g.children.length) g.remove(g.children[0]); }
 
-    // Sync all 3 dropdowns for reel ri to reflect curSel[ri]
+    // Sync all 3 dropdowns for reel ri from curSel — each row is independent
     function syncReel(ri) {
         var n = symNames.length;
         if (n === 0) return;
-        var landing = ((curSel[ri] || 0) % n + n) % n;
-        var above   = (landing - 1 + n) % n;
-        var below   = (landing + 1) % n;
-        if (rowDDs[0][ri]) rowDDs[0][ri].selection = above;
-        if (rowDDs[1][ri]) rowDDs[1][ri].selection = landing;
-        if (rowDDs[2][ri]) rowDDs[2][ri].selection = below;
+        for (var row = 0; row < 3; row++) {
+            if (rowDDs[row][ri]) rowDDs[row][ri].selection = ((curSel[row][ri] || 0) % n + n) % n;
+        }
     }
 
     function syncAll() {
@@ -362,27 +366,23 @@
             for (var ri = 0; ri < REEL_COUNT; ri++) {
                 var dd = grp.add("dropdownlist", undefined, symNames);
                 dd.preferredSize = [COL_W, rowH];
-                // Top (▲) and bottom (▼) rows are display-only — they show the
-                // symbols adjacent to the landing; only the center row (◆) is interactive.
-                if (rowIdx !== 1) {
-                    dd.enabled = false;
-                } else {
-                    (function (r2, thisDd) {
-                        thisDd.onChange = function () {
-                            if (_syncing || !thisDd.selection) return;
-                            var newLanding = thisDd.selection.index;
-                            curSel[r2] = newLanding;
-                            _syncing = true;
-                            try { syncReel(r2); } finally { _syncing = false; }
-                            var ok = writeSlider(_rc, r2, newLanding);
-                            updateStatus(
-                                ok === true
-                                    ? "\u2714  Reel " + (r2 + 1) + " \u2192 " + symNames[newLanding]
-                                    : "\u26A0  " + (ok || "Reel_Control not found")
-                            );
-                        };
-                    })(ri, dd);
-                }
+                // All 3 rows are independently interactive — each writes to its own slider
+                (function (r2, rowI, thisDd) {
+                    thisDd.onChange = function () {
+                        if (_syncing || !thisDd.selection) return;
+                        var newVal = thisDd.selection.index;
+                        curSel[rowI][r2] = newVal;
+                        _syncing = true;
+                        try { syncReel(r2); } finally { _syncing = false; }
+                        var ok = writeSlider(r2, rowI, newVal);
+                        var rowLabel = ["\u25B2", "\u25C6", "\u25BC"][rowI];
+                        updateStatus(
+                            ok === true
+                                ? "\u2714  Reel " + (r2 + 1) + " " + rowLabel + " \u2192 " + symNames[newVal]
+                                : "\u26A0  " + (ok || "Reel_Control not found")
+                        );
+                    };
+                })(ri, rowIdx, dd);
                 rowDDs[rowIdx][ri] = dd;
             }
         }
