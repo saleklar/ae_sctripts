@@ -235,7 +235,7 @@
         fontRow.alignChildren = ["left", "center"];
         fontRow.spacing = 4;
         fontRow.add("statictext", undefined, "Font:").preferredSize.width = 30;
-        var fontEdit = fontRow.add("edittext", undefined, "BlueWinter");
+        var fontEdit = fontRow.add("edittext", undefined, "Blue Winter");
         fontEdit.preferredSize.width = 140;
         fontEdit.helpTip = "PostScript font name for variant (13_1..13_9) number overlays";
         var applyFontBtn = fontRow.add("button", undefined, "Apply");
@@ -382,6 +382,7 @@
             var fontName = fontEdit.text;
             if (!fontName || fontName === "") { alert("Enter a font name."); return; }
             var updated = 0;
+            var actualFont = "";
             try {
                 app.beginUndoGroup("Apply Variant Font");
                 for (var fi = 1; fi <= CELL_COUNT; fi++) {
@@ -391,23 +392,34 @@
                         var l = cellComp.layers[li];
                         if (l.name.indexOf("_num") === l.name.length - 4 && l instanceof TextLayer) {
                             var tp = l.property("Source Text");
-                            // Update every keyframe, or just the static value
                             if (tp.numKeys > 0) {
                                 for (var ki = 1; ki <= tp.numKeys; ki++) {
                                     var td = tp.keyValue(ki);
                                     td.font = fontName;
                                     tp.setValueAtKey(ki, td);
+                                    // Read back the actual PostScript name AE used
+                                    if (actualFont === "") actualFont = tp.keyValue(ki).font;
                                 }
                             } else {
                                 var td2 = tp.value;
                                 td2.font = fontName;
                                 tp.setValue(td2);
+                                if (actualFont === "") actualFont = tp.value.font;
                             }
                             updated++;
                         }
                     }
                 }
-                statusTxt.text = "Font \"" + fontName + "\" applied to " + updated + " overlay layers.";
+                if (updated === 0) {
+                    statusTxt.text = "No _num layers found. Re-run import script first.";
+                } else if (actualFont !== "" && actualFont !== fontName) {
+                    // AE substituted a different font — show the real name
+                    statusTxt.text = updated + " layers updated. AE used: \"" + actualFont + "\"";
+                    fontEdit.text = actualFont;  // auto-correct the field
+                    alert("Font substituted!\nYou typed:   \"" + fontName + "\"\nAE used:     \"" + actualFont + "\"\n\nThe field has been updated with the correct name.");
+                } else {
+                    statusTxt.text = "Font \"" + actualFont + "\" applied to " + updated + " layers.";
+                }
             } catch (e) {
                 alert("Error: " + e.toString());
             } finally {
