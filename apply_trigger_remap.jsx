@@ -656,18 +656,41 @@
 
                             var origYB = compSize * (ssiB - 1) + compSize / 2;
 
-                            // Position: hold → sweep up → snap back
+                            // Position: sweep up immediately on arrival (linear), snap back with hold
                             var ppB = ssLL.property("Position");
-                            ppB.setValueAtTime(arrivalT,                [shWB, origYB]);
-                            ppB.setValueAtTime(arrivalT + shiftDur,     [shWB, origYB - compSize]);
+                            ppB.setValueAtTime(arrivalT,                 [shWB, origYB]);
+                            ppB.setValueAtTime(arrivalT + shiftDur,      [shWB, origYB - compSize]);
                             ppB.setValueAtTime(arrivalT + shiftDur + fd, [shWB, origYB]);
+                            // Find and set interpolation by time so prior keys don't break indices
+                            try {
+                                for (var kki = 1; kki <= ppB.numKeys; kki++) {
+                                    var kkt = ppB.keyTime(kki);
+                                    if (Math.abs(kkt - arrivalT) < fd * 0.5) {
+                                        ppB.setInterpolationTypeAtKey(kki, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+                                    } else if (Math.abs(kkt - (arrivalT + shiftDur)) < fd * 0.5) {
+                                        ppB.setInterpolationTypeAtKey(kki, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.HOLD);
+                                    } else if (Math.abs(kkt - (arrivalT + shiftDur + fd)) < fd * 0.5) {
+                                        ppB.setInterpolationTypeAtKey(kki, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
+                                    }
+                                }
+                            } catch(eKiB) {}
 
-                            // Top slot opacity: fade out during sweep, restore after snap
+                            // Top slot opacity: fade out during sweep (linear start), restore with hold snap
                             if (ssiB === 1) {
                                 var topOpB = ssLL.property("Opacity");
                                 topOpB.setValueAtTime(arrivalT,                 100);
                                 topOpB.setValueAtTime(arrivalT + shiftDur,        0);
                                 topOpB.setValueAtTime(arrivalT + shiftDur + fd,  100);
+                                try {
+                                    for (var koi = 1; koi <= topOpB.numKeys; koi++) {
+                                        var kot = topOpB.keyTime(koi);
+                                        if (Math.abs(kot - arrivalT) < fd * 0.5) {
+                                            topOpB.setInterpolationTypeAtKey(koi, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+                                        } else if (Math.abs(kot - (arrivalT + shiftDur)) < fd * 0.5) {
+                                            topOpB.setInterpolationTypeAtKey(koi, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.HOLD);
+                                        }
+                                    }
+                                } catch(eOiB) {}
                             }
 
                             // Time Remap: expression-based hold-then-swap (avoids keyframe-on-expression error)
