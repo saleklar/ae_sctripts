@@ -32,6 +32,9 @@
     var _statusTxt = null;
     var _win       = null;
     var gridGroup  = null;
+    var _keyMode   = false; // when true: setValueAtTime instead of setValue
+    var _spinIdx   = 0;     // 0-based index into spin_start markers
+    var _spinLbl   = null;  // statictext showing current spin
 
     // ── Build UI ─────────────────────────────────────────────────────────────
     function buildUI(host) {
@@ -45,7 +48,7 @@
         win.spacing       = 4;
         win.margins       = [8, 8, 8, 8];
 
-        // Toolbar
+        // Toolbar row 1: title + refresh
         var tb = win.add("group");
         tb.orientation = "row"; tb.alignChildren = ["left", "center"]; tb.spacing = 8;
         var ttl = tb.add("statictext", undefined, "REEL SYMBOL CHART");
@@ -55,6 +58,48 @@
         rb.preferredSize = [76, 22];
         rb.helpTip = "Re-read symbols and sliders from AE project";
         rb.onClick = function () { refreshAll(); };
+
+        // Toolbar row 2: spin navigator + keyframe mode
+        var tb2 = win.add("group");
+        tb2.orientation = "row"; tb2.alignChildren = ["center", "center"]; tb2.spacing = 4;
+
+        var btnPrev = tb2.add("button", undefined, "\u25C0");
+        btnPrev.preferredSize = [28, 22];
+        btnPrev.helpTip = "Previous spin";
+        _spinLbl = tb2.add("statictext", undefined, "Spin 1");
+        _spinLbl.preferredSize = [52, 22]; _spinLbl.justify = "center";
+        var btnNext = tb2.add("button", undefined, "\u25B6");
+        btnNext.preferredSize = [28, 22];
+        btnNext.helpTip = "Next spin";
+
+        var sep2 = tb2.add("group"); sep2.alignment = ["fill", "center"];
+
+        var kmChk = tb2.add("checkbox", undefined, "\uD83D\uDD11 Key");
+        kmChk.helpTip = "When checked: dropdown changes write a keyframe at the current Master comp time instead of a static value";
+        kmChk.value = false;
+        kmChk.onClick = function () {
+            _keyMode = kmChk.value;
+            updateStatus(_keyMode
+                ? "\u23F1 Keyframe mode ON \u2014 changes key at current comp time"
+                : "\u2714 Static mode \u2014 changes overwrite slider value");
+        };
+
+        var btnSetAll = tb2.add("button", undefined, "Set All");
+        btnSetAll.preferredSize = [56, 22];
+        btnSetAll.helpTip = "Key all 5 reels at current comp time (keyframe mode) or set all statically";
+        btnSetAll.onClick = function () {
+            if (!_rc) { updateStatus("\u26A0 Not connected"); return; }
+            for (var r = 0; r < REEL_COUNT; r++) {
+                writeSlider(_rc, r, curSel[r] || 0);
+            }
+            var t = _keyMode
+                ? " at " + _fmtTime(_rc.containingComp.time, _rc.containingComp.frameRate)
+                : "";
+            updateStatus("\u2714 All reels set" + t);
+        };
+
+        btnPrev.onClick = function () { _navSpin(-1); };
+        btnNext.onClick = function () { _navSpin( 1); };
 
         // Grid container (no extra border panel)
         gridGroup = win.add("group");
@@ -127,13 +172,64 @@
     function writeSlider(rcLayer, reelIdx, symIdx) {
         try {
             app.beginUndoGroup("Reel Symbol Chart: set reel");
-            rcLayer.effect("Reel " + (reelIdx + 1) + " Symbol")("Slider").setValue(symIdx);
+            var prop = rcLayer.effect("Reel " + (reelIdx + 1) + " Symbol")("Slider");
+            if (_keyMode) {
+                prop.setValueAtTime(rcLayer.containingComp.time, symIdx);
+            } else {
+                prop.setValue(symIdx);
+            }
             app.endUndoGroup();
             return true;
         } catch (e) {
             try { app.endUndoGroup(); } catch (ex) {}
             return false;
         }
+    }
+
+    // ── Spin navigator helpers ────────────────────────────────────────────────
+    function _getSpinTimes() {
+        var times = [];
+        try {
+            for (var i = 1; i <= app.project.items.length; i++) {
+                var it = app.project.items[i];
+                if (it instanceof CompItem && it.name === "Master") {
+                    var mm = it.markerProperty;
+                    for (var mi = 1; mi <= mm.numKeys; mi++) {
+                        if (mm.key(mi).comment === "spin_start") times.push(mm.key(mi).time);
+                    }
+                    break;
+                }
+            }
+        } catch (e) {}
+        times.sort(function (a, b) { return a - b; });
+        return times;
+    }
+
+    function _fmtTime(t, fps) {
+        var f = Math.round(t * fps);
+        var s = Math.floor(f / fps); f = f % fps;
+        var m = Math.floor(s / 60); s = s % 60;
+        return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s + ":" + (f < 10 ? "0" : "") + f;
+    }
+
+    function _navSpin(delta) {
+        var times = _getSpinTimes();
+        if (times.length === 0) { updateStatus("\u26A0 No spin_start markers in Master"); return; }
+        _spinIdx = (_spinIdx + delta + times.length) % times.length;
+        if (_spinLbl) _spinLbl.text = "Spin " + (_spinIdx + 1) + "/" + times.length;
+        // Jump playhead to spin_start time in Master
+        try {
+            for (var i = 1; i <= app.project.items.length; i++) {
+                var it = app.project.items[i];
+                if (it instanceof CompItem && it.name === "Master") {
+                    it.openInViewer();
+                    app.activeViewer.setActive();
+                    it.time = times[_spinIdx];
+                    break;
+                }
+            }
+        } catch (e) {}
+        updateStatus("\u23F1 Spin " + (_spinIdx + 1) + " @ " + _fmtTime(times[_spinIdx], 30));
     }
 
 
