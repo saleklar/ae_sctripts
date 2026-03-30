@@ -316,7 +316,9 @@
             var t = masterComp.time;
             try {
                 app.beginUndoGroup("Place Spin Marker");
-                masterComp.markerProperty.setValueAtTime(t, new MarkerValue("spin"));
+                var spinMv = new MarkerValue("spin");
+                spinMv.duration = 2.0;
+                masterComp.markerProperty.setValueAtTime(t, spinMv);
                 statusTxt.text = "Spin @ " + t.toFixed(3) + "s  \u2014  2s, 3 cycles";
             } catch (e) {
                 alert("Error: " + e.toString());
