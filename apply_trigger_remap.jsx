@@ -244,6 +244,22 @@
 
         win.add("panel").preferredSize.height = 1;
 
+        // Layout controls: spacing + bulk setup
+        var layoutRow = win.add("group");
+        layoutRow.orientation  = "row";
+        layoutRow.alignChildren = ["left", "center"];
+        layoutRow.spacing = 4;
+        layoutRow.add("statictext", undefined, "Spacing (px):");
+        var reelSpacingInput = layoutRow.add("edittext", undefined, "300");
+        reelSpacingInput.preferredSize.width = 50;
+        reelSpacingInput.helpTip = "Horizontal distance in pixels between reel centre points.";
+        var setupAllBtn = layoutRow.add("button", undefined, "Setup All Reels");
+        setupAllBtn.helpTip = "Runs Setup for all 5 reels using the spacing above.";
+        var respaceBtn  = layoutRow.add("button", undefined, "Re-space");
+        respaceBtn.helpTip = "Moves existing Reel_Ctrl nulls to match the spacing above without rebuilding layers.";
+
+        win.add("panel").preferredSize.height = 1;
+
         var refreshBtn   = win.add("button", undefined, "\u27F3 Refresh Clip Lists");
         var randomizeBtn = win.add("button", undefined, "\uD83C\uDFB2 Randomize Stats (all reels)");
         randomizeBtn.helpTip = "Places a random stat clip on every cell of every reel at the current Master playhead";
@@ -327,11 +343,11 @@
                     var drawSize = cell1.width;
                     var compSize = Math.round(drawSize / 1.5);
                     var halfCell = compSize / 2;
-                    var reelW    = compSize + 50;
-                    // Lay out 5 reels evenly across Master width
-                    var totalW  = reelW * REEL_COUNT;
-                    var startX  = masterComp.width / 2 - totalW / 2 + reelW * (reelIdx - 1) + reelW / 2;
-                    var startY  = (masterComp.height - compSize * CELL_COUNT) / 2 + halfCell;
+                    var spacing  = parseFloat(reelSpacingInput.text);
+                    if (isNaN(spacing) || spacing <= 0) spacing = compSize + 50;
+                    // Centre all 5 reels across Master width using spacing between centres
+                    var startX   = masterComp.width / 2 - spacing * (REEL_COUNT - 1) / 2 + spacing * (reelIdx - 1);
+                    var startY   = (masterComp.height - compSize * CELL_COUNT) / 2 + halfCell;
 
                     try {
                         app.beginUndoGroup("Setup Reel " + reelIdx);
@@ -366,13 +382,13 @@
                         var shelfComp2 = findComp(shelfCompName);
                         if (!shelfComp2) {
                             var reelH2   = compSize * CELL_COUNT;
-                            shelfComp2   = app.project.items.addComp(shelfCompName, reelW, reelH2, 1, cell1.duration, cell1.frameRate);
+                            shelfComp2   = app.project.items.addComp(shelfCompName, compSize, reelH2, 1, cell1.duration, cell1.frameRate);
                             var shelf13T = 0;
                             var rm2      = cell1.markerProperty;
                             for (var smi2 = 1; smi2 <= rm2.numKeys; smi2++) {
                                 if (rm2.keyValue(smi2).comment === "13_1_stat") { shelf13T = rm2.keyTime(smi2); break; }
                             }
-                            var reelCX2 = reelW / 2;
+                            var reelCX2 = compSize / 2;
                             for (var shi2 = 0; shi2 < CELL_COUNT; shi2++) {
                                 var shelfLyr2 = shelfComp2.layers.add(cell1);
                                 shelfLyr2.position.setValue([reelCX2, compSize * shi2 + compSize / 2]);
@@ -405,6 +421,40 @@
                 };
             })(sb + 1, allSetupBtns[sb]);
         }
+
+        setupAllBtn.onClick = function () {
+            for (var sai = 0; sai < REEL_COUNT; sai++) {
+                allSetupBtns[sai].onClick();
+            }
+        };
+
+        respaceBtn.onClick = function () {
+            if (!app.project) { alert("No project open."); return; }
+            var masterComp = findComp("Master");
+            if (!masterComp) { alert("No \"Master\" comp found."); return; }
+            var cell1 = findComp("Symbol_Cell_1");
+            if (!cell1) { alert("No \"Symbol_Cell_1\" comp found."); return; }
+            var compSize = Math.round(cell1.width / 1.5);
+            var halfCell = compSize / 2;
+            var spacing  = parseFloat(reelSpacingInput.text);
+            if (isNaN(spacing) || spacing <= 0) spacing = compSize + 50;
+            try {
+                app.beginUndoGroup("Re-space Reels");
+                for (var rsi = 1; rsi <= REEL_COUNT; rsi++) {
+                    var rsNull = findReelNull(masterComp, rsi);
+                    if (!rsNull) continue;
+                    var rsX = masterComp.width / 2 - spacing * (REEL_COUNT - 1) / 2 + spacing * (rsi - 1);
+                    var rsY = (masterComp.height - compSize * CELL_COUNT) / 2 + halfCell + compSize * (CELL_COUNT - 1) / 2;
+                    try { rsNull.property("Position").expression = ""; } catch(ex) {}
+                    rsNull.position.setValue([rsX, rsY]);
+                }
+                statusTxt.text = "Reels re-spaced at " + spacing + "px intervals.";
+            } catch (e) {
+                alert("Error: " + e.toString() + (e.line ? "\nLine: " + e.line : ""));
+            } finally {
+                app.endUndoGroup();
+            }
+        };
 
         refreshBtn.onClick = function () { refreshLists(); };
 
