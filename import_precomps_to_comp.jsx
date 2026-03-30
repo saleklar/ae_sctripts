@@ -25,8 +25,7 @@
         if (!(fitem.mainSource instanceof FileSource)) continue;
 
         var fname   = fitem.name;
-        // Support both  13_1_stat  (variant ID = "13_1")  and  5_stat  (plain ID = "5")
-        var idMatch = fname.match(/(\d+_\d+)(?=[_\-\.\s]|$)/) || fname.match(/(\d+)/);
+        var idMatch = fname.match(/(\d+)/);
         if (!idMatch) continue;
 
         var id    = idMatch[1];
@@ -57,6 +56,25 @@
     for (var vi = 0; vi < idOrder.length; vi++) {
         var g = groups[idOrder[vi]];
         if (g.stat || g.land || g.win || g.pop || g.empty) validIds.push(idOrder[vi]);
+    }
+
+    // ----------------------------------------------------------------
+    // Expand variant IDs: symbol 13 → 13_1 .. 13_9
+    // All variants share the same footage; number overlay added when building comps.
+    // ----------------------------------------------------------------
+    var VARIANT_BASE    = "13";
+    var VARIANT_COUNT   = 9;
+    var variantBaseIdx  = validIds.indexOf(VARIANT_BASE);
+    if (variantBaseIdx !== -1) {
+        validIds.splice(variantBaseIdx, 1);   // remove plain "13"
+        var variantInsert = [];
+        for (var vn = 1; vn <= VARIANT_COUNT; vn++) {
+            var vid = VARIANT_BASE + "_" + vn;
+            groups[vid] = groups[VARIANT_BASE]; // same footage reference
+            variantInsert.push(vid);
+        }
+        // Insert variants where "13" was
+        Array.prototype.splice.apply(validIds, [variantBaseIdx, 0].concat(variantInsert));
     }
 
     if (validIds.length === 0) {
@@ -204,7 +222,7 @@
         reelComp.openInViewer();
 
         // Build shelf_reel_1: 4 cells all locked to symbol 13_1_stat (static, no spin)
-        // Find 13_1_stat time in Symbol_Cell_1 markers
+        // Find 13_1_stat time in Symbol_Cell_1 markers (first variant)
         var shelf13Time = 0;
         var refMarkers = cellComps[0].markerProperty;
         for (var smi = 1; smi <= refMarkers.numKeys; smi++) {
