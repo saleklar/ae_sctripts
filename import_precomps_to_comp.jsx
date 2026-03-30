@@ -88,49 +88,75 @@
     if (totalDur <= 0) totalDur = 10;
 
     // ----------------------------------------------------------------
-    // Step 4: Build Symbol_Cell_1 comp
+    // Step 4: Build 4 Symbol_Cell comps and stack them in reel_1
     // ----------------------------------------------------------------
+    var cellCount = 4;
+    var reelW     = compSize + 50;
+    var reelH     = compSize * cellCount;
+
     try {
         app.beginUndoGroup("Import Footage to Symbol Sequence");
 
-        // Remove existing Symbol_Cell_1
+        // Remove existing Symbol_Cell_1..4 and reel_1
         for (var di = app.project.items.length; di >= 1; di--) {
             var ditem;
             try { ditem = app.project.items[di]; } catch (e) { continue; }
-            if ((ditem instanceof CompItem) && ditem.name === "Symbol_Cell_1") {
+            if (!(ditem instanceof CompItem)) continue;
+            var dn = ditem.name;
+            if (dn === "reel_1" ||
+                dn === "Symbol_Cell_1" || dn === "Symbol_Cell_2" ||
+                dn === "Symbol_Cell_3" || dn === "Symbol_Cell_4") {
                 try { ditem.remove(); } catch (e) {}
-                break;
             }
         }
 
-        var seqComp = app.project.items.addComp("Symbol_Cell_1", compSize, compSize, 1, totalDur, fr);
+        // Create 4 identical Symbol_Cell comps
+        var cellComps = [];
         var cx = compSize / 2, cy = compSize / 2;
-        var cursor = 0;
 
-        for (var si = 0; si < validIds.length; si++) {
-            var grp = groups[validIds[si]];
-            var order = ["stat", "land", "win", "pop"];
+        for (var ci = 1; ci <= cellCount; ci++) {
+            var seqComp = app.project.items.addComp(
+                "Symbol_Cell_" + ci, compSize, compSize, 1, totalDur, fr);
+            var cursor = 0;
 
-            for (var oi = 0; oi < order.length; oi++) {
-                var ftg = grp[order[oi]];
-                if (!ftg) continue;
+            for (var si = 0; si < validIds.length; si++) {
+                var grp = groups[validIds[si]];
+                var order = ["stat", "land", "win", "pop"];
 
-                // Still images report duration ~0 — clamp to at least 1 frame
-                var clipDur = Math.max(ftg.duration, fd);
+                for (var oi = 0; oi < order.length; oi++) {
+                    var ftg = grp[order[oi]];
+                    if (!ftg) continue;
 
-                var layer = seqComp.layers.add(ftg);
-                layer.startTime = cursor;
-                layer.outPoint  = cursor + clipDur;
-                layer.position.setValue([cx, cy]);
-                var clipName = validIds[si] + "_" + order[oi];
-                layer.name = clipName;
-                // Marker on seqComp at clip start — acts as lookup table for trigger expression
-                seqComp.markerProperty.setValueAtTime(cursor, new MarkerValue(clipName));
-                cursor += clipDur;
+                    // Still images report duration ~0 — clamp to at least 1 frame
+                    var clipDur = Math.max(ftg.duration, fd);
+
+                    var layer = seqComp.layers.add(ftg);
+                    layer.startTime = cursor;
+                    layer.outPoint  = cursor + clipDur;
+                    layer.position.setValue([cx, cy]);
+                    var clipName = validIds[si] + "_" + order[oi];
+                    layer.name = clipName;
+                    // Marker on seqComp at clip start — acts as lookup table for trigger expression
+                    seqComp.markerProperty.setValueAtTime(cursor, new MarkerValue(clipName));
+                    cursor += clipDur;
+                }
             }
+            cellComps.push(seqComp);
         }
 
-        seqComp.openInViewer();
+        // Build reel_1: compSize+50 wide, compSize*4 tall
+        var reelComp = app.project.items.addComp("reel_1", reelW, reelH, 1, totalDur, fr);
+        var reelCX   = reelW / 2;
+
+        for (var ri = 0; ri < cellCount; ri++) {
+            var cellLayer = reelComp.layers.add(cellComps[ri]);
+            // Stack cells vertically; center each on its row
+            var cellY = compSize * ri + cy;
+            cellLayer.position.setValue([reelCX, cellY]);
+            cellLayer.name = cellComps[ri].name;
+        }
+
+        reelComp.openInViewer();
 
         // Build per-ID diagnostic
         var diagLines = [];
@@ -147,7 +173,8 @@
 
         alert(
             "Done!\n\n" +
-            "\"Symbol_Cell_1\" created.\n" +
+            "4× Symbol_Cell comps created and stacked in \"reel_1\".\n" +
+            "reel_1 size: " + reelW + " × " + reelH + " px\n" +
             "Symbols: " + validIds.length + "  |  Total: " + totalDur.toFixed(2) + "s  (" + Math.round(totalDur * fr) + " frames)\n\n" +
             "Per-symbol:\n" + diagLines.join("\n")
         );
