@@ -272,7 +272,8 @@
                 return;
             }
 
-            var compSize = cell1.width;
+            var drawSize = cell1.width;                     // actual canvas (typed * 1.5)
+            var compSize = Math.round(drawSize / 1.5);     // spacing unit = the typed value
             var halfCell = compSize / 2;
             // Center the column horizontally in Master; top cell starts so block is vertically centered
             var startX = masterComp.width / 2;
