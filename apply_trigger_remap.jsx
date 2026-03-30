@@ -552,6 +552,15 @@
                     }
                 } return -1;
             }
+            // reverse lookup: given a Time Remap value, find the closest marker comment
+            function bfClipByTime(tv) {
+                var bestName = ""; var bestDiff = 999999;
+                for (var xi = 1; xi <= nm; xi++) {
+                    var diff = Math.abs(seqComp.markerProperty.keyTime(xi) - tv);
+                    if (diff < bestDiff) { bestDiff = diff; bestName = seqComp.markerProperty.keyValue(xi).comment; }
+                }
+                return bestName;
+            }
 
             // --- find bubble cells at t0 (cells 2-4 only; cell 1 is spin-only) ---
             var bubbleCells = [];
@@ -579,8 +588,9 @@
                 return;
             }
 
-            // --- read current shelf Time Remap values at t0 ---
+            // --- read current shelf Time Remap values + clip names at t0 ---
             var shelfTimes3 = [];
+            var shelfClips3 = [];   // parallel array: clip name for each slot
             for (var stsi = 1; stsi <= 4; stsi++) {
                 var stslL = null;
                 if (shelfCompB) {
@@ -588,8 +598,10 @@
                         if (shelfCompB.layers[stli].name === "shelf_cell_" + stsi) { stslL = shelfCompB.layers[stli]; break; }
                     }
                 }
-                try { shelfTimes3.push(stslL ? stslL.property("Time Remap").valueAtTime(t0, false) : 0); }
-                catch(e2) { shelfTimes3.push(0); }
+                var stv = 0;
+                try { stv = stslL ? stslL.property("Time Remap").valueAtTime(t0, false) : 0; } catch(e2) {}
+                shelfTimes3.push(stv);
+                shelfClips3.push(bfClipByTime(stv));
             }
 
             var flyLog = [];
@@ -700,20 +712,42 @@
                                 } catch(eOiB) {}
                             }
 
-                            // Time Remap: hold current symbol until swap point, then show new
-                            var newTRB = (ssiB < 4) ? shelfTimes3[ssiB] : (statTB >= 0 ? statTB : 0);
-                            var swapT  = touchT + shiftDur + fd;
+                            // Time Remap: stat → land during sweep → new stat after snap
+                            var newTRB      = (ssiB < 4) ? shelfTimes3[ssiB] : (statTB >= 0 ? statTB : 0);
+                            var swapT       = touchT + shiftDur + fd;
+                            var slotClip    = shelfClips3[ssiB - 1];
+                            var slotLiPos   = slotClip.lastIndexOf("_");
+                            var slotLandClip = (slotLiPos >= 0 ? slotClip.substring(0, slotLiPos) : slotClip) + "_land";
+                            var slotLandSt  = bfMTime(slotLandClip);
+                            var slotLandEn  = bfMEnd(slotLandClip);
+                            var slotLandDur = (slotLandSt >= 0 && slotLandEn > slotLandSt) ? (slotLandEn - slotLandSt) : shiftDur;
+                            var oldStatTR   = shelfTimes3[ssiB - 1];
                             try {
-                                ssLL.property("Time Remap").expression =
-                                    'time < ' + swapT + ' ? ' + shelfTimes3[ssiB - 1] + ' : ' + newTRB + ';';
+                                if (slotLandSt >= 0) {
+                                    // three phases: hold stat | play land during sweep | snap to new stat
+                                    ssLL.property("Time Remap").expression =
+                                        'var tT=' + touchT + ';var sT=' + swapT + ';' +
+                                        'var ls=' + slotLandSt + ';var ld=' + slotLandDur + ';' +
+                                        'var fd=thisComp.frameDuration;' +
+                                        'if(time<tT){' + oldStatTR + ';}' +
+                                        'else if(time<sT){ls+Math.min(time-tT,ld-fd);}' +
+                                        'else{' + newTRB + ';}';
+                                } else {
+                                    // no land clip found — hold then swap
+                                    ssLL.property("Time Remap").expression =
+                                        'time < ' + swapT + ' ? ' + oldStatTR + ' : ' + newTRB + ';';
+                                }
                             } catch(e3B) {}
                         }
 
                         // Advance shelf state for next bubble in this batch
-                        var nextSTB = [];
-                        for (var nsiB = 1; nsiB < 4; nsiB++) nextSTB.push(shelfTimes3[nsiB]);
-                        nextSTB.push(statTB >= 0 ? statTB : 0);
+                        var nextSTB = []; var nextSCB = [];
+                        for (var nsiB = 1; nsiB < 4; nsiB++) { nextSTB.push(shelfTimes3[nsiB]); nextSCB.push(shelfClips3[nsiB]); }
+                        var newStatT = statTB >= 0 ? statTB : 0;
+                        nextSTB.push(newStatT);
+                        nextSCB.push(bfClipByTime(newStatT));
                         shelfTimes3 = nextSTB;
+                        shelfClips3 = nextSCB;
                     }
 
                     flyLog.push("Cell " + bc.ci + ": " + bc.clip);
