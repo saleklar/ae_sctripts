@@ -105,7 +105,7 @@
     if (isNaN(compSize) || compSize <= 0) { alert("Invalid size."); return; }
 
     // Variant number overlay settings
-    var fontInput = prompt("Variant overlay font (PostScript name):", "Blue Winter");
+    var fontInput = prompt("Variant overlay font (PostScript name):", "BlueWinter-Regular");
     if (fontInput === null) return;
     var variantFont = fontInput;
     var fontSzInput = prompt("Variant overlay font size (px):", String(Math.round(compSize * 0.2)));

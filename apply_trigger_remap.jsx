@@ -235,7 +235,7 @@
         fontRow.alignChildren = ["left", "center"];
         fontRow.spacing = 4;
         fontRow.add("statictext", undefined, "Font:").preferredSize.width = 30;
-        var fontEdit = fontRow.add("edittext", undefined, "Blue Winter");
+        var fontEdit = fontRow.add("edittext", undefined, "BlueWinter-Regular");
         fontEdit.preferredSize.width = 140;
         fontEdit.helpTip = "PostScript font name for variant (13_1..13_9) number overlays";
         var applyFontBtn = fontRow.add("button", undefined, "Apply");
