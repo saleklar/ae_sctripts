@@ -289,21 +289,31 @@
 
             var spc = app.project.items.addComp("Solo_" + solo.id, compSize, compSize, 1, fixedDur, fr);
 
-            // --- Stat PNG before footage (covers full stat phase) ---
+            // --- Stat PNG (or frozen first frame) covers BOTH stat and land phases ---
+            // This keeps the symbol static during land, since there is no land animation.
             if (soloStatFootage) {
                 var soloStatInPc = spc.layers.add(soloStatFootage);
                 soloStatInPc.startTime = 0;
-                soloStatInPc.outPoint  = normStatDurSec;
+                soloStatInPc.outPoint  = normStatDurSec + normLandDurSec;  // covers stat + land
                 soloStatInPc.position.setValue([compSize / 2, compSize / 2]);
+            } else {
+                // No stat PNG: freeze the first frame of the footage as a placeholder
+                var soloPlaceholder = spc.layers.add(soloFtg);
+                soloPlaceholder.startTime = 0;
+                soloPlaceholder.outPoint  = normStatDurSec + normLandDurSec;
+                soloPlaceholder.position.setValue([compSize / 2, compSize / 2]);
+                soloPlaceholder.timeRemapEnabled = true;
+                soloPlaceholder.property("Time Remap").expression = '0;';
             }
 
+            // Solo footage starts only after the land phase — plays win/pop from there.
             var soloInPc = spc.layers.add(soloFtg);
-            soloInPc.startTime = normStatDurSec;
+            soloInPc.startTime = normStatDurSec + normLandDurSec;
             soloInPc.outPoint  = fixedDur;  // freeze last frame to end of comp
             soloInPc.position.setValue([compSize / 2, compSize / 2]);
             soloInPc.timeRemapEnabled = true;
             soloInPc.property("Time Remap").expression =
-                'Math.min(time - ' + normStatDurSec + ', ' + (soloFtg.duration - 1/fr) + ');';
+                'Math.min(time - ' + (normStatDurSec + normLandDurSec) + ', ' + (soloFtg.duration - 1/fr) + ');';
 
             precompItems.push(spc);
         }
