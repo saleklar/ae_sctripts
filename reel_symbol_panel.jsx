@@ -33,8 +33,9 @@
     var _win       = null;
     var gridGroup  = null;
     var _keyMode   = false; // when true: setValueAtTime instead of setValue
-    var _spinIdx   = 0;     // 0-based index into spin_start markers
-    var _spinLbl   = null;  // statictext showing current spin
+    var _spinIdx    = 0;     // 0-based index into spin_start markers
+    var _spinLbl    = null;  // statictext showing current spin
+    var _winChartLb = null;  // listbox for Win/Pop Schedule chart
 
     // ── Build UI ─────────────────────────────────────────────────────────────
     function buildUI(host) {
@@ -133,6 +134,9 @@
         gridGroup.alignChildren = ["left", "top"];
         gridGroup.spacing       = 2;
         gridGroup.margins       = [0, 0, 0, 0];
+
+        // Win / Pop Schedule chart
+        _winChartLb = buildWinChart(win);
 
         // Status bar
         var stBar = win.add("group");
@@ -309,6 +313,87 @@
     }
 
 
+    // ── Win / Pop Schedule chart ──────────────────────────────────────────────
+    // buildWinChart — creates a multi-column listbox panel listing each spin_start
+    // marker found in Master and the symbol (+ win flag) assigned to each reel at
+    // that moment.  Returns the listbox so refreshWinChart can populate it later.
+    function buildWinChart(parent) {
+        var pnl = parent.add("panel", undefined, "Win / Pop Schedule");
+        pnl.orientation   = "column";
+        pnl.alignChildren = ["fill", "top"];
+        pnl.spacing       = 4;
+        pnl.margins       = [6, 10, 6, 6];
+
+        var cols = ["Spin", "Time", "Reel 1", "Reel 2", "Reel 3", "Reel 4", "Reel 5"];
+        var colW = [36, 60, 72, 72, 72, 72, 72];
+        var lb = pnl.add("listbox", undefined, undefined, {
+            numberOfColumns : cols.length,
+            showHeaders     : true,
+            columnTitles    : cols,
+            columnWidths    : colW
+        });
+        lb.preferredSize.height = 110;
+
+        var bar = pnl.add("group");
+        bar.orientation = "row"; bar.alignChildren = ["right", "center"];
+        var refreshBtn = bar.add("button", undefined, "\u21BA Refresh");
+        refreshBtn.preferredSize = [76, 22];
+        refreshBtn.helpTip = "Re-read Master markers and symbol assignments";
+        refreshBtn.onClick = function () {
+            var c = collectSymbolNames();
+            symNames = c.names; symItems = c.full;
+            refreshWinChart(lb);
+        };
+
+        return lb;
+    }
+
+    // refreshWinChart — re-populates the listbox from AE state.
+    // Columns: Spin index | marker time | Reel 1..5 symbol name (+ \u2605 if Win ON)
+    function refreshWinChart(lb) {
+        lb.removeAll();
+        var rc = getMasterReelControl();
+        if (!rc) {
+            var nr = lb.add("item", "\u2014");
+            nr.subItems[0].text = "Reel_Control not found";
+            return;
+        }
+
+        var spinTimes = _getSpinTimes();
+        if (spinTimes.length === 0) {
+            var nr2 = lb.add("item", "\u2014");
+            nr2.subItems[0].text = "No spin_start markers in Master";
+            return;
+        }
+
+        var fps = rc.containingComp.frameRate;
+        for (var si2 = 0; si2 < spinTimes.length; si2++) {
+            var t = spinTimes[si2];
+            var row = lb.add("item", (si2 + 1).toString());
+            row.subItems[0].text = _fmtTime(t, fps);
+
+            for (var ri2 = 1; ri2 <= REEL_COUNT; ri2++) {
+                var symVal = 0;
+                var winOn  = false;
+                try {
+                    symVal = Math.round(
+                        rc.effect("Reel " + ri2 + " Symbol")("Slider").valueAtTime(t, false)
+                    );
+                } catch (e) { symVal = 0; }
+                try {
+                    winOn = Math.round(
+                        rc.effect("Reel " + ri2 + " Win")("Checkbox").valueAtTime(t, false)
+                    ) === 1;
+                } catch (e) { winOn = false; }
+
+                var symLabel = (symVal >= 0 && symVal < symNames.length)
+                    ? symNames[symVal]
+                    : String(symVal);
+                row.subItems[ri2].text = winOn ? symLabel + " \u2605" : symLabel;
+            }
+        }
+    }
+
     // ── Grid helpers ──────────────────────────────────────────────────────────
     // rowDDs[rowOffset][reelIdx]  offset: 0=top(above), 1=center(landing), 2=bottom(below)
     var rowDDs  = [[], [], []];
@@ -411,6 +496,7 @@
         buildGrid(_rc);
         syncAll();
         updateStatus("\u2714  " + symNames.length + " symbols, " + REEL_COUNT + " reels \u2014 connected");
+        if (_winChartLb) refreshWinChart(_winChartLb);
         try { _win.layout.layout(true); } catch (e) {}
     }
 
