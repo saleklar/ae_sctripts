@@ -243,10 +243,10 @@
         flyRow.add("statictext", undefined, "Fly Speed (s):");
         var flySpeedInput = flyRow.add("edittext", undefined, "1.0");
         flySpeedInput.preferredSize.width = 45;
-        flyRow.add("statictext", undefined, "Shelf Lead (0-1):");
-        var shelfLeadInput = flyRow.add("edittext", undefined, "0.5");
+        flyRow.add("statictext", undefined, "Lead offset (s):");
+        var shelfLeadInput = flyRow.add("edittext", undefined, "0.0");
         shelfLeadInput.preferredSize.width = 38;
-        shelfLeadInput.helpTip = "Fraction of fly duration before arrival that the shelf starts sweeping (0=on arrival, 1=on launch)."
+        shelfLeadInput.helpTip = "Fine-tune offset in seconds added to the auto-detected touch time (negative = earlier, positive = later)."
 
         var bubbleFlyBtn = win.add("button", undefined, "\uD83E\uDEF7 Bubble Fly");
         bubbleFlyBtn.helpTip = "At current time: fades bubble cells (13/22-25) to 50%, flies a copy up to the shelf. Each subsequent bubble pushes shelf up.";
@@ -698,11 +698,17 @@
                         posPropB.setTemporalEaseAtKey(2, [new KeyframeEase(100,  0)], [new KeyframeEase(0,    0)]);
                     } catch(eEaseB) {}
 
-                    // touchT: shelf starts sweeping shelfLead * flyDurB before the bubble arrives
-                    var shelfLead = parseFloat(shelfLeadInput.text);
-                    if (isNaN(shelfLead)) shelfLead = 0.5;
-                    shelfLead = Math.max(0, Math.min(1, shelfLead));
-                    var touchT = Math.max(launchT, arrivalT - shelfLead * flyDurB);
+                    // touchT: exact moment the bubble's top edge crosses the shelf's bottom edge.
+                    // Uses ease-out approximation y(p) = 1-(1-p)^2 (KeyframeEase influence 50).
+                    // Solve: 1 - sqrt(compSize / (2 * totalTravel)) = progress fraction p.
+                    var totalTravelB2 = cellParYB - flyEndY;  // positive (bubble moves up)
+                    var touchP = (totalTravelB2 > compSize / 2)
+                        ? 1 - Math.sqrt(compSize / (2 * totalTravelB2))
+                        : 0;  // bubble starts inside shelf — sweep immediately
+                    touchP = Math.max(0, Math.min(1, touchP));
+                    var leadOffset = parseFloat(shelfLeadInput.text);
+                    if (isNaN(leadOffset)) leadOffset = 0;
+                    var touchT = launchT + touchP * flyDurB + leadOffset;
 
                     // 5. Time Remap expression: stat during flight, land on arrival
                     flyLyr.timeRemapEnabled = true;
