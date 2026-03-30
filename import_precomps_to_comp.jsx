@@ -1,9 +1,8 @@
-// Import Precomps to Comp — Sequential
-// Finds all Symbol_ compositions in the project and places them
-// one after another (in sequence) as a single new precomp.
-// Each Symbol_ comp occupies exactly its own duration on the timeline.
-// The new comp is sized to the active comp (or the first Symbol_ comp if
-// no comp is open) and named "Symbol_Sequence".
+// Import Footage to Symbol Sequence
+// Scans all project FootageItems, groups them by numeric ID,
+// and places them directly into a single new "Symbol_Sequence" comp
+// in the order:  stat → land → win → pop  for each ID,
+// then moves to the next ID.  No sub-precomps are created.
 
 (function () {
 
@@ -12,48 +11,81 @@
         return;
     }
 
-    // Collect all Symbol_ comps, sorted by numeric ID
-    var symComps = [];
+    // ----------------------------------------------------------------
+    // Step 1: Scan footage and group by ID (same rules as make_symbol_precomps)
+    // ----------------------------------------------------------------
+    var groups  = {};
+    var idOrder = [];
+
     for (var i = 1; i <= app.project.items.length; i++) {
-        var item;
-        try { item = app.project.items[i]; } catch (e) { continue; }
-        if (!(item instanceof CompItem)) continue;
-        var m = item.name.match(/^Symbol_(\d+)$/);
-        if (m) symComps.push({ comp: item, id: parseInt(m[1], 10) });
+        var fitem;
+        try { fitem = app.project.items[i]; } catch (e) { continue; }
+        if (!fitem || !(fitem instanceof FootageItem)) continue;
+
+        var fname   = fitem.name;
+        var idMatch = fname.match(/(\d+)/);
+        if (!idMatch) continue;
+
+        var id    = idMatch[1];
+        var lower = fname.toLowerCase();
+
+        if (!groups[id]) {
+            groups[id] = { stat: null, land: null, win: null, pop: null };
+            idOrder.push(id);
+        }
+
+        if      (lower.indexOf("stat") !== -1) groups[id].stat = fitem;
+        else if (lower.indexOf("land") !== -1) groups[id].land = fitem;
+        else if (lower.indexOf("pop")  !== -1) groups[id].pop  = fitem;
+        else if (lower.indexOf("win")  !== -1) groups[id].win  = fitem;
     }
 
-    if (symComps.length === 0) {
-        alert("No Symbol_ compositions found.\nRun make_symbol_precomps.jsx first.");
+    // Keep only IDs that have at least one animation clip
+    var validIds = [];
+    for (var vi = 0; vi < idOrder.length; vi++) {
+        var g = groups[idOrder[vi]];
+        if (g.stat || g.land || g.win || g.pop) validIds.push(idOrder[vi]);
+    }
+
+    if (validIds.length === 0) {
+        alert("No footage with ID numbers found in the project.");
         return;
     }
 
-    symComps.sort(function (a, b) { return a.id - b.id; });
+    // ----------------------------------------------------------------
+    // Step 2: Ask for canvas size and frame rate
+    // ----------------------------------------------------------------
+    var frInput = prompt("Enter frame rate:", "30");
+    if (frInput === null) return;
+    var fr = parseFloat(frInput);
+    if (isNaN(fr) || fr <= 0) { alert("Invalid frame rate."); return; }
 
-    // Use the frame rate and canvas size from the first Symbol_ comp
-    var refComp  = symComps[0].comp;
-    var fr       = refComp.frameRate;
-    var seqW     = refComp.width;
-    var seqH     = refComp.height;
+    var sizeInput = prompt(
+        "Found " + validIds.length + " symbol group(s).\n\nEnter comp canvas size (px):", "246");
+    if (sizeInput === null) return;
+    var compSize = parseInt(sizeInput, 10);
+    if (isNaN(compSize) || compSize <= 0) { alert("Invalid size."); return; }
 
-    // Each Symbol_ comp contributes exactly clipDur seconds to the sequence.
-    // All Symbol_ comps share the same normalized duration (same timeline layout),
-    // so we use the first one's duration for every slot.
-    var clipDur  = refComp.duration;
-    var totalDur = clipDur * symComps.length;
+    // ----------------------------------------------------------------
+    // Step 3: Measure total duration — sum of every clip that exists
+    // ----------------------------------------------------------------
+    var totalDur = 0;
+    for (var ti = 0; ti < validIds.length; ti++) {
+        var tg = groups[validIds[ti]];
+        if (tg.stat)  totalDur += tg.stat.duration;
+        if (tg.land)  totalDur += tg.land.duration;
+        if (tg.win)   totalDur += tg.win.duration;
+        if (tg.pop)   totalDur += tg.pop.duration;
+    }
+    if (totalDur <= 0) totalDur = 10;
 
-    var doIt = confirm(
-        "Found " + symComps.length + " Symbol_ comp(s).\n\n" +
-        "Will create \"Symbol_Sequence\" (" + seqW + "×" + seqH + " px, " +
-        fr + " fps, " + totalDur.toFixed(2) + "s)\n" +
-        "with all symbols laid out sequentially, each " + clipDur.toFixed(2) + "s.\n\n" +
-        "Continue?"
-    );
-    if (!doIt) return;
-
+    // ----------------------------------------------------------------
+    // Step 4: Build Symbol_Sequence comp
+    // ----------------------------------------------------------------
     try {
-        app.beginUndoGroup("Import Precomps to Comp Sequential");
+        app.beginUndoGroup("Import Footage to Symbol Sequence");
 
-        // Remove an existing Symbol_Sequence if present
+        // Remove existing Symbol_Sequence
         for (var di = app.project.items.length; di >= 1; di--) {
             var ditem;
             try { ditem = app.project.items[di]; } catch (e) { continue; }
@@ -63,24 +95,32 @@
             }
         }
 
-        var seqComp = app.project.items.addComp("Symbol_Sequence", seqW, seqH, 1, totalDur, fr);
-        var cx = seqW / 2, cy = seqH / 2;
+        var seqComp = app.project.items.addComp("Symbol_Sequence", compSize, compSize, 1, totalDur, fr);
+        var cx = compSize / 2, cy = compSize / 2;
         var cursor = 0;
 
-        for (var si = 0; si < symComps.length; si++) {
-            var sc    = symComps[si].comp;
-            var layer = seqComp.layers.add(sc);
-            layer.startTime = cursor;
-            layer.outPoint  = cursor + clipDur;
-            layer.position.setValue([cx, cy]);
-            cursor += clipDur;
+        for (var si = 0; si < validIds.length; si++) {
+            var grp = groups[validIds[si]];
+            var order = ["stat", "land", "win", "pop"];
+
+            for (var oi = 0; oi < order.length; oi++) {
+                var ftg = grp[order[oi]];
+                if (!ftg) continue;
+
+                var layer = seqComp.layers.add(ftg);
+                layer.startTime = cursor;
+                layer.outPoint  = cursor + ftg.duration;
+                layer.position.setValue([cx, cy]);
+                cursor += ftg.duration;
+            }
         }
 
         seqComp.openInViewer();
 
         alert(
             "Done!\n\n" +
-            "\"Symbol_Sequence\" created with " + symComps.length + " symbol(s) in sequence.\n" +
+            "\"Symbol_Sequence\" created.\n" +
+            "Symbols: " + validIds.length + "  |  IDs: " + validIds.join(", ") + "\n" +
             "Total duration: " + totalDur.toFixed(2) + "s  (" + Math.round(totalDur * fr) + " frames)"
         );
 
