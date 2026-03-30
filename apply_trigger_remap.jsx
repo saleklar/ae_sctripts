@@ -612,6 +612,21 @@
             try {
                 app.beginUndoGroup("Bubble Fly");
 
+                // Clear all accumulated Position + Opacity keyframes on shelf layers
+                // so multiple bi iterations don't stack extra keyframes from prior runs.
+                if (shelfCompB) {
+                    for (var sci = 1; sci <= 4; sci++) {
+                        for (var scli = 1; scli <= shelfCompB.layers.length; scli++) {
+                            if (shelfCompB.layers[scli].name === "shelf_cell_" + sci) {
+                                var scLayer = shelfCompB.layers[scli];
+                                try { var scP = scLayer.property("Position");  while (scP.numKeys  > 0) scP.removeKey(1);  } catch(esc1) {}
+                                try { var scO = scLayer.property("Opacity");   while (scO.numKeys  > 0) scO.removeKey(1);  } catch(esc2) {}
+                                break;
+                            }
+                        }
+                    }
+                }
+
                 for (var bi = 0; bi < bubbleCells.length; bi++) {
                     var bc   = bubbleCells[bi];
                     var launchT  = t0 + bi * flyDur;
