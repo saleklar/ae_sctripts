@@ -617,12 +617,24 @@
                     var launchT  = t0 + bi * flyDur;
                     var arrivalT = launchT + flyDur;
 
-                    // 1. Reel cell fades to 50% on launch, then to 0% when copy arrives
+                    // 1. Reel cell: instant fade to 50% on launch, stays faded.
+                    //    Restores to 100% at the next spin marker after this launch.
                     var opPropB = bc.layer.property("Opacity");
-                    opPropB.setValueAtTime(launchT,       100);
-                    opPropB.setValueAtTime(launchT + fd,   50);
-                    opPropB.setValueAtTime(arrivalT - fd,  50);
-                    opPropB.setValueAtTime(arrivalT,        0);
+                    opPropB.setValueAtTime(launchT,      100);
+                    opPropB.setValueAtTime(launchT + fd,  50);
+                    // Find next spin comp marker after launchT and restore opacity there
+                    var cmB = masterComp.markerProperty;
+                    var nextSpinT = -1;
+                    for (var nsi = 1; nsi <= cmB.numKeys; nsi++) {
+                        var nst = cmB.keyTime(nsi);
+                        if (nst > launchT && cmB.keyValue(nsi).comment.indexOf("spin") === 0) {
+                            if (nextSpinT < 0 || nst < nextSpinT) nextSpinT = nst;
+                        }
+                    }
+                    if (nextSpinT >= 0) {
+                        opPropB.setValueAtTime(nextSpinT - fd,  50);
+                        opPropB.setValueAtTime(nextSpinT,      100);
+                    }
 
                     // 2. Land clip info
                     var liPosB   = bc.clip.lastIndexOf("_");
