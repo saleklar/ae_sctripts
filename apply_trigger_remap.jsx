@@ -786,11 +786,24 @@
                                 } catch(eS4B) {}
                             }
 
-                            // Collect Time Remap swap point for this slot/bubble
+                            // Collect Time Remap swap point + land clip for this slot/bubble
                             // (written after the bi loop so all thresholds are known)
-                            var swapT2    = (ssiB < 4) ? touchT + shiftDurB + fd : arrivalT + landDurB;
-                            var newTR2    = (ssiB < 4) ? shelfTimes3[ssiB] : (statTB >= 0 ? statTB : 0);
-                            slotTRParts[ssiB - 1].push({ swapT: swapT2, tr: newTR2 });
+                            var swapT2     = (ssiB < 4) ? touchT + shiftDurB + fd : arrivalT + landDurB;
+                            var newTR2     = (ssiB < 4) ? shelfTimes3[ssiB] : (statTB >= 0 ? statTB : 0);
+                            var sClip2     = shelfClips3[ssiB - 1];
+                            var sLiPos2    = sClip2.lastIndexOf("_");
+                            var sLandClip2 = (sLiPos2 >= 0 ? sClip2.substring(0, sLiPos2) : sClip2) + "_land";
+                            var sLandSt2   = bfMTime(sLandClip2);
+                            var sLandEn2   = bfMEnd(sLandClip2);
+                            var sLandDur2  = (sLandSt2 >= 0 && sLandEn2 > sLandSt2) ? (sLandEn2 - sLandSt2) : shiftDurB;
+                            slotTRParts[ssiB - 1].push({
+                                touchT:    touchT,
+                                shiftDurB: shiftDurB,
+                                landSt:    sLandSt2,
+                                landDur:   sLandDur2,
+                                swapT:     swapT2,
+                                tr:        newTR2
+                            });
                         }
 
                         // Advance shelf state for next bubble in this batch
@@ -807,6 +820,7 @@
                 }
 
                 // Write shelf Time Remap expressions once — piecewise over all bubble swap points
+                // Each window: hold stat | land animation during sweep | hold until swap | new stat
                 if (shelfCompB) {
                     for (var wrS = 1; wrS <= 4; wrS++) {
                         var wrLL = null;
@@ -818,7 +832,18 @@
                         var wrExpr = '';
                         for (var pi = 0; pi < wrParts.length; pi++) {
                             var beforeTR = (pi === 0) ? slotTRInit[wrS - 1] : wrParts[pi - 1].tr;
-                            wrExpr += 'time < ' + wrParts[pi].swapT + ' ? ' + beforeTR + ' : ';
+                            var wp       = wrParts[pi];
+                            var sweepEnd = wp.touchT + wp.shiftDurB;
+                            // hold current stat until sweep starts
+                            wrExpr += 'time<' + wp.touchT + '?' + beforeTR + ':';
+                            // play land animation during the sweep
+                            if (wp.landSt >= 0) {
+                                wrExpr += 'time<' + sweepEnd + '?(' + wp.landSt +
+                                          '+Math.min(time-' + wp.touchT + ',' + wp.landDur +
+                                          '-thisComp.frameDuration))'  + ':';
+                            }
+                            // hold until content swap point (matters most for slot 4)
+                            wrExpr += 'time<' + wp.swapT + '?' + beforeTR + ':';
                         }
                         wrExpr += (wrParts.length > 0) ? (wrParts[wrParts.length - 1].tr + ';') : (slotTRInit[wrS - 1] + ';');
                         try { wrLL.property("Time Remap").expression = wrExpr; } catch(eWR) {}
