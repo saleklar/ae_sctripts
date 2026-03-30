@@ -553,9 +553,9 @@
                 } return -1;
             }
 
-            // --- find bubble cells at t0 (top-to-bottom order) ---
+            // --- find bubble cells at t0 (cells 2-4 only; cell 1 is spin-only) ---
             var bubbleCells = [];
-            for (var ci3 = 1; ci3 <= CELL_COUNT; ci3++) {
+            for (var ci3 = 2; ci3 <= CELL_COUNT; ci3++) {
                 var clyr3 = null;
                 for (var li3 = 1; li3 <= masterComp.layers.length; li3++) {
                     var ll3 = masterComp.layers[li3];
