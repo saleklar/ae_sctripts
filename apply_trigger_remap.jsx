@@ -51,7 +51,7 @@
             '      var sbName = ""; var sbTime = -1;' +
             '      for (var li = 1; li <= lm.numKeys; li++) {' +
             '        var lt = lm.key(li).time;' +
-            '        if (lt < ss && lt > sbTime) { sbTime = lt; sbName = lm.key(li).comment; }' +
+            '        if (lt <= ss && lt > sbTime) { sbTime = lt; sbName = lm.key(li).comment; }' +
             '      }' +
             '      autoLandClip = (sbName !== "") ? sbName.split("_")[0] + "_land" : "";' +
             '    }' +
