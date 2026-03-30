@@ -767,11 +767,12 @@
                                 } catch(eOiB) {}
                             }
 
-                            // Time Remap: hold own stat throughout the physical move,
-                            // snap to new content only after position snaps back.
-                            // Slot 4 → new bubble; slots 1-3 → each takes the content
-                            // from the slot below (creating the push-up illusion).
-                            var swapT       = touchT + shiftDurB + fd;
+                            // Time Remap: hold own stat throughout the physical move.
+                            // Slots 1-3 swap content at snap-back (position illusion complete).
+                            // Slot 4 waits until the flying bubble's landing animation finishes.
+                            var swapT       = (ssiB < 4)
+                                                ? touchT + shiftDurB + fd
+                                                : arrivalT + landDurB;
                             var oldStatTR   = shelfTimes3[ssiB - 1];
                             var afterSwapTR = (ssiB < 4) ? shelfTimes3[ssiB] : (statTB >= 0 ? statTB : 0);
                             try {
