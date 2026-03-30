@@ -668,17 +668,13 @@
                                 topOpB.setValueAtTime(arrivalT + shiftDur + fd,  100);
                             }
 
-                            // Time Remap: hold old value then snap to new at swap point
+                            // Time Remap: expression-based hold-then-swap (avoids keyframe-on-expression error)
                             var newTRB = (ssiB < 4) ? shelfTimes3[ssiB] : (statTB >= 0 ? statTB : 0);
-                            try { ssLL.property("Time Remap").expression = ""; } catch(e3B) {}
-                            var trPB = ssLL.property("Time Remap");
-                            while (trPB.numKeys > 0) trPB.removeKey(1);
-                            trPB.setValueAtTime(arrivalT,                  shelfTimes3[ssiB - 1]);
-                            trPB.setValueAtTime(arrivalT + shiftDur + fd,  newTRB);
+                            var swapT  = arrivalT + shiftDur + fd;
                             try {
-                                trPB.setInterpolationTypeAtKey(1, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
-                                trPB.setInterpolationTypeAtKey(2, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
-                            } catch(eKIB) {}
+                                ssLL.property("Time Remap").expression =
+                                    'time < ' + swapT + ' ? ' + shelfTimes3[ssiB - 1] + ' : ' + newTRB + ';';
+                            } catch(e3B) {}
                         }
 
                         // Advance shelf state for next bubble in this batch
