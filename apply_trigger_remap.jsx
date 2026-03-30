@@ -350,7 +350,9 @@
                         shelfMasterLayer = masterComp.layers.add(shelfComp);
                         shelfMasterLayer.startTime = 0;
                     }
+                    // Set absolute position first, then parent — AE auto-converts to parent-relative
                     shelfMasterLayer.position.setValue([startX, startY - compSize * 1.5]);
+                    shelfMasterLayer.parent = nullLayer;
                 }
 
                 statusTxt.text = "Setup done. Move Reel_Ctrl to reposition. Place Spin markers to animate.";
