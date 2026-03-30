@@ -106,6 +106,25 @@
         btnPrev.onClick = function () { _navSpin(-1); };
         btnNext.onClick = function () { _navSpin( 1); };
 
+        // Toolbar row 3: place comp markers at current playhead
+        var tb3 = win.add("group");
+        tb3.orientation = "row"; tb3.alignChildren = ["center", "center"]; tb3.spacing = 4;
+
+        var markerDefs = [
+            { label: "\u25B6 Spin",    comment: "spin_start", tip: "Place spin_start marker at current time in Master" },
+            { label: "\u2605 Win",     comment: "win_play",   tip: "Place win_play marker at current time in Master"  },
+            { label: "\u25B6 Spin 2",  comment: "spin_start", tip: "Place another spin_start marker at current time in Master" },
+            { label: "\uD83D\uDCA5 Pop", comment: "pop",      tip: "Place pop marker at current time in Master"      }
+        ];
+        for (var mi2 = 0; mi2 < markerDefs.length; mi2++) {
+            (function (def) {
+                var btn = tb3.add("button", undefined, def.label);
+                btn.preferredSize = [72, 22];
+                btn.helpTip = def.tip;
+                btn.onClick = function () { _placeMasterMarker(def.comment); };
+            })(markerDefs[mi2]);
+        }
+
         // Grid container (no extra border panel)
         gridGroup = win.add("group");
         gridGroup.orientation   = "column";
@@ -196,6 +215,28 @@
         } catch (e) {
             try { app.endUndoGroup(); } catch (ex) {}
             return e.toString();
+        }
+    }
+
+    // ── Marker placement helper ───────────────────────────────────────────────
+    function _placeMasterMarker(comment) {
+        var masterComp = null;
+        try {
+            for (var i = 1; i <= app.project.items.length; i++) {
+                var it = app.project.items[i];
+                if (it instanceof CompItem && it.name === "Master") { masterComp = it; break; }
+            }
+        } catch (e) {}
+        if (!masterComp) { updateStatus("\u26A0 Master comp not found"); return; }
+        try {
+            app.beginUndoGroup("Place " + comment + " marker");
+            var t = masterComp.time;
+            masterComp.markerProperty.setValueAtTime(t, new MarkerValue(comment));
+            app.endUndoGroup();
+            updateStatus("\u2714 [" + comment + "] \u2192 " + _fmtTime(t, masterComp.frameRate));
+        } catch (e) {
+            try { app.endUndoGroup(); } catch (ex) {}
+            updateStatus("\u26A0 " + e.toString());
         }
     }
 
