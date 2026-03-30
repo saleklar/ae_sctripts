@@ -88,10 +88,15 @@
         btnSetAll.preferredSize = [56, 22];
         btnSetAll.helpTip = "Key all 5 reels at current comp time (keyframe mode) or set all statically";
         btnSetAll.onClick = function () {
-            if (!_rc) { updateStatus("\u26A0 Not connected"); return; }
+            var freshRc = getMasterReelControl();
+            if (!freshRc) { updateStatus("\u26A0 Not connected"); return; }
+            _rc = freshRc;
+            var lastErr = null;
             for (var r = 0; r < REEL_COUNT; r++) {
-                writeSlider(_rc, r, curSel[r] || 0);
+                var res = writeSlider(_rc, r, curSel[r] || 0);
+                if (res !== true) lastErr = res;
             }
+            if (lastErr) { updateStatus("\u26A0 " + lastErr); return; }
             var t = _keyMode
                 ? " at " + _fmtTime(_rc.containingComp.time, _rc.containingComp.frameRate)
                 : "";
@@ -171,10 +176,14 @@
 
     function writeSlider(rcLayer, reelIdx, symIdx) {
         try {
+            // Always fetch a fresh handle — cached refs go stale after undo/comp changes
+            var freshRc = getMasterReelControl();
+            if (!freshRc) return "Reel_Control layer not found";
+            _rc = freshRc;  // keep cache up to date
             app.beginUndoGroup("Reel Symbol Chart: set reel");
-            var prop = rcLayer.effect("Reel " + (reelIdx + 1) + " Symbol")("Slider");
+            var prop = freshRc.effect("Reel " + (reelIdx + 1) + " Symbol")("Slider");
             if (_keyMode) {
-                prop.setValueAtTime(rcLayer.containingComp.time, symIdx);
+                prop.setValueAtTime(freshRc.containingComp.time, symIdx);
             } else {
                 prop.setValue(symIdx);
             }
@@ -182,7 +191,7 @@
             return true;
         } catch (e) {
             try { app.endUndoGroup(); } catch (ex) {}
-            return false;
+            return e.toString();
         }
     }
 
@@ -320,8 +329,9 @@
                         try { syncReel(r2); } finally { _syncing = false; }
                         var ok = writeSlider(_rc, r2, newLanding);
                         updateStatus(
-                            ok ? "\u2714  Reel " + (r2 + 1) + " \u2192 " + symNames[newLanding]
-                               : "\u26A0  Could not write to Reel_Control"
+                            ok === true
+                                ? "\u2714  Reel " + (r2 + 1) + " \u2192 " + symNames[newLanding]
+                                : "\u26A0  " + (ok || "Reel_Control not found")
                         );
                     };
                 })(ri, def.offset, dd);
