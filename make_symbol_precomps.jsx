@@ -199,41 +199,6 @@
         }
 
         // ----------------------------------------------------------------
-        // Step 5: Add all Symbol_ precomps as layers into the active comp
-        // ----------------------------------------------------------------
-        // Collect the CompItems we just created, in ID order.
-        var symComps = [];
-        for (var sci = 0; sci < created.length; sci++) {
-            for (var spi = 1; spi <= app.project.items.length; spi++) {
-                var spItem = app.project.items[spi];
-                if ((spItem instanceof CompItem) && spItem.name === "Symbol_" + created[sci]) {
-                    symComps.push(spItem);
-                    break;
-                }
-            }
-        }
-
-        // Determine destination comp:
-        //   - prefer the active item if it is already a CompItem
-        //   - otherwise ask the user to pick from open comps
-        var destComp = null;
-        var activeItem = app.project.activeItem;
-        if (activeItem && (activeItem instanceof CompItem)) {
-            destComp = activeItem;
-        }
-
-        if (destComp) {
-            // Add each Symbol_ precomp as a layer at t=0, centered, hidden by default.
-            // Layers are stacked so all symbols are in one comp — toggle opacity to select.
-            for (var ai = symComps.length - 1; ai >= 0; ai--) {
-                var addedLayer = destComp.layers.add(symComps[ai]);
-                addedLayer.startTime = 0;
-                addedLayer.position.setValue([destComp.width / 2, destComp.height / 2]);
-                // All layers visible; use opacity expressions or solo to preview each one
-            }
-        }
-
-        // ----------------------------------------------------------------
         // Summary
         // ----------------------------------------------------------------
         var phaseReport =
@@ -245,15 +210,10 @@
                 ? "  pop    t=" + tPop.toFixed(3) + " … " + (tPop + normPopDur).toFixed(3) + "\n"
                 : "  pop    (none found)\n");
 
-        var destMsg = destComp
-            ? "\nAll " + symComps.length + " precomp(s) added as layers to: \"" + destComp.name + "\""
-            : "\nNo active composition found — precomps created in project only.\nOpen a comp and re-run, or drag them in manually.";
-
         alert(
             "Done!  Created " + created.length + " Symbol_ precomp(s).\n\n" +
             phaseReport +
-            "\nIDs created: " + created.join(", ") +
-            destMsg
+            "\nIDs created: " + created.join(", ")
         );
 
     } catch (e) {
