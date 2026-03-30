@@ -216,6 +216,14 @@
             "\nIDs created: " + created.join(", ")
         );
 
+        // Run Trigger script after precomps are built
+        var triggerFile = new File("L:/2D/ADOBE SCRIPTS/Trigger!!!/Trigger.jsxbin");
+        if (triggerFile.exists) {
+            $.evalFile(triggerFile);
+        } else {
+            alert("Trigger.jsxbin not found at:\n" + triggerFile.fsName);
+        }
+
     } catch (e) {
         alert("Error: " + e.toString() + (e.line ? "\nLine: " + e.line : ""));
     } finally {
