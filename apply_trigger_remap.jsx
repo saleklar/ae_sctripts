@@ -106,7 +106,7 @@
                 return;
             }
             for (var mi = 1; mi <= nm; mi++) {
-                dd.add("item", seqComp.markerProperty.key(mi).comment);
+                dd.add("item", seqComp.markerProperty.keyValue(mi).comment);
             }
             dd.selection = 0;
             statusTxt.text = nm + " clips loaded from Symbol_Sequence";
