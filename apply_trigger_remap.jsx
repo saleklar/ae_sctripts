@@ -334,9 +334,6 @@
 
                 // Place shelf_reel_1 above the main reel
                 // Bottom cell of shelf aligns with top cell of main reel (both at startY)
-                // shelf_reel_1 comp is reelH=compSize*4 tall, anchor at comp center (compSize*2 from top)
-                // Bottom cell center is compSize*1.5 below comp center
-                // So: shelfY + compSize*1.5 = startY  →  shelfY = startY - compSize*1.5
                 var shelfComp = findComp("shelf_reel_1");
                 if (shelfComp) {
                     var shelfMasterLayer = null;

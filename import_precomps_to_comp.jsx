@@ -1,8 +1,8 @@
 // Import Footage to Symbol Sequence
 // Scans all project FootageItems, groups them by numeric ID,
-// and places them directly into a single new "Symbol_Cell_1" comp
-// in the order:  stat → land → win → pop  for each ID,
-// then moves to the next ID.  No sub-precomps are created.
+// and places them directly into Symbol_Cell comps.
+// Supports both simple IDs (e.g. 5_stat) and variant IDs (e.g. 13_1_stat).
+// Variant clips (13_1..13_9) get a centered number overlay using blue_winter font.
 
 (function () {
 
@@ -25,7 +25,8 @@
         if (!(fitem.mainSource instanceof FileSource)) continue;
 
         var fname   = fitem.name;
-        var idMatch = fname.match(/(\d+)/);
+        // Support both  13_1_stat  (variant ID = "13_1")  and  5_stat  (plain ID = "5")
+        var idMatch = fname.match(/(\d+_\d+)(?=[_\-\.\s]|$)/) || fname.match(/(\d+)/);
         if (!idMatch) continue;
 
         var id    = idMatch[1];
@@ -146,6 +147,30 @@
                     layer.name = clipName;
                     // Marker on seqComp at clip start — acts as lookup table for trigger expression
                     seqComp.markerProperty.setValueAtTime(cursor, new MarkerValue(clipName));
+
+                    // Variant IDs (e.g. "13_1") get a number overlay using blue_winter font
+                    var vParts = validIds[si].match(/^(\d+)_(\d+)$/);
+                    if (vParts && order[oi] !== "empty") {
+                        try {
+                            var tl = seqComp.layers.addText(vParts[2]);
+                            var tProp = tl.property("Source Text");
+                            var tDoc  = tProp.value;
+                            tDoc.font             = "blue_winter";
+                            tDoc.fontSize         = 22;
+                            tDoc.fillColor        = [1, 1, 1];
+                            tDoc.applyFill        = true;
+                            tDoc.strokeColor      = [0, 0, 0];
+                            tDoc.strokeWidth      = 2;
+                            tDoc.applyStroke      = true;
+                            tDoc.justification    = ParagraphJustification.CENTER_JUSTIFY;
+                            tProp.setValue(tDoc);
+                            tl.position.setValue([cx, cy]);
+                            tl.startTime = cursor;
+                            tl.outPoint  = cursor + clipDur;
+                            tl.name      = clipName + "_num";
+                        } catch (te) { /* font not found — skip overlay */ }
+                    }
+
                     cursor += clipDur;
                 }
 
@@ -178,12 +203,12 @@
 
         reelComp.openInViewer();
 
-        // Build shelf_reel_1: 4 cells all locked to symbol 13_stat (static, no spin)
-        // Find 13_stat time in Symbol_Cell_1 markers
+        // Build shelf_reel_1: 4 cells all locked to symbol 13_1_stat (static, no spin)
+        // Find 13_1_stat time in Symbol_Cell_1 markers
         var shelf13Time = 0;
         var refMarkers = cellComps[0].markerProperty;
         for (var smi = 1; smi <= refMarkers.numKeys; smi++) {
-            if (refMarkers.keyValue(smi).comment === "13_stat") {
+            if (refMarkers.keyValue(smi).comment === "13_1_stat") {
                 shelf13Time = refMarkers.keyTime(smi);
                 break;
             }
@@ -195,7 +220,7 @@
             shelfLayer.position.setValue([reelCX, compSize * shi + compSize / 2]);
             shelfLayer.name = "shelf_cell_" + (shi + 1);
             shelfLayer.timeRemapEnabled = true;
-            // Constant expression locks every cell to the 13_stat frame
+            // Constant expression locks every cell to the 13_1_stat frame
             shelfLayer.property("Time Remap").expression = shelf13Time + ";";
         }
 
