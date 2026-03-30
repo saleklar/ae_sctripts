@@ -243,6 +243,10 @@
         flyRow.add("statictext", undefined, "Fly Speed (s):");
         var flySpeedInput = flyRow.add("edittext", undefined, "1.0");
         flySpeedInput.preferredSize.width = 45;
+        flyRow.add("statictext", undefined, "Shelf Lead (0-1):");
+        var shelfLeadInput = flyRow.add("edittext", undefined, "0.5");
+        shelfLeadInput.preferredSize.width = 38;
+        shelfLeadInput.helpTip = "Fraction of fly duration before arrival that the shelf starts sweeping (0=on arrival, 1=on launch)."
 
         var bubbleFlyBtn = win.add("button", undefined, "\uD83E\uDEF7 Bubble Fly");
         bubbleFlyBtn.helpTip = "At current time: fades bubble cells (13/22-25) to 50%, flies a copy up to the shelf. Each subsequent bubble pushes shelf up.";
@@ -646,14 +650,11 @@
                         posPropB.setTemporalEaseAtKey(2, [new KeyframeEase(100,  0)], [new KeyframeEase(0,    0)]);
                     } catch(eEaseB) {}
 
-                    // touchT = moment bubble center reaches bottom EDGE of shelf (slot4 center + half cell)
-                    // computed via linear fraction of total travel distance (good enough for user perception)
-                    var totalTravelB = cellMYB - shelf4Y;   // positive: bubble travels upward (Y decreases)
-                    var touchFracB   = (totalTravelB > compSize / 2)
-                                        ? (cellMYB - (shelf4Y + compSize / 2)) / totalTravelB
-                                        : 0;
-                    touchFracB = Math.max(0, Math.min(1, touchFracB));
-                    var touchT = launchT + touchFracB * flyDur;
+                    // touchT: shelf starts sweeping shelfLead * flyDur before the bubble arrives
+                    var shelfLead = parseFloat(shelfLeadInput.text);
+                    if (isNaN(shelfLead)) shelfLead = 0.5;
+                    shelfLead = Math.max(0, Math.min(1, shelfLead));
+                    var touchT = Math.max(launchT, arrivalT - shelfLead * flyDur);
 
                     // 5. Time Remap expression: stat during flight, land on arrival
                     flyLyr.timeRemapEnabled = true;
