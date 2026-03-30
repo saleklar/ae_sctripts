@@ -1,10 +1,10 @@
 // Trigger Remap Panel
 // Dockable ScriptUI panel.
-// 1. Click "Setup Remap" to add Symbol_Sequence to Master comp and apply
+// 1. Click "Setup Remap" to add Symbol_Cell_1 to Master comp and apply
 //    the time-remap expression that responds to named markers.
 // 2. Pick a clip from the dropdown and click "Place Marker" to stamp
 //    that clip name as a marker at the current Master comp playhead position.
-// 3. Click "Refresh" to reload the clip list from Symbol_Sequence markers.
+// 3. Click "Refresh" to reload the clip list from Symbol_Cell_1 markers.
 
 (function (thisObj) {
 
@@ -69,8 +69,8 @@
         win.add("panel").preferredSize.height = 1; // divider
 
         // Setup button
-        var setupBtn = win.add("button", undefined, "Setup Remap (Master + Symbol_Sequence)");
-        setupBtn.helpTip = "Adds Symbol_Sequence to Master comp and applies Time Remap expression";
+        var setupBtn = win.add("button", undefined, "Setup Remap (Master + Symbol_Cell_1)");
+        setupBtn.helpTip = "Adds Symbol_Cell_1 to Master comp and applies Time Remap expression";
 
         win.add("panel").preferredSize.height = 1; // divider
 
@@ -95,44 +95,44 @@
         // ----------------------------------------------------------------
         function refreshList() {
             dd.removeAll();
-            var seqComp = findComp("Symbol_Sequence");
+            var seqComp = findComp("Symbol_Cell_1");
             if (!seqComp) {
-                statusTxt.text = "Symbol_Sequence not found";
+                statusTxt.text = "Symbol_Cell_1 not found";
                 return;
             }
             var nm = seqComp.markerProperty.numKeys;
             if (nm === 0) {
-                statusTxt.text = "Symbol_Sequence has no markers";
+                statusTxt.text = "Symbol_Cell_1 has no markers";
                 return;
             }
             for (var mi = 1; mi <= nm; mi++) {
                 dd.add("item", seqComp.markerProperty.keyValue(mi).comment);
             }
             dd.selection = 0;
-            statusTxt.text = nm + " clips loaded from Symbol_Sequence";
+            statusTxt.text = nm + " clips loaded from Symbol_Cell_1";
         }
 
         setupBtn.onClick = function () {
             if (!app.project) { alert("No project open."); return; }
 
             var masterComp = findComp("Master");
-            var seqComp    = findComp("Symbol_Sequence");
+            var seqComp    = findComp("Symbol_Cell_1");
 
             if (!masterComp) { alert("No \"Master\" comp found."); return; }
-            if (!seqComp)    { alert("No \"Symbol_Sequence\" comp found.\nRun import_precomps_to_comp.jsx first."); return; }
+            if (!seqComp)    { alert("No \"Symbol_Cell_1\" comp found.\nRun import_precomps_to_comp.jsx first."); return; }
             if (seqComp.markerProperty.numKeys === 0) {
-                alert("Symbol_Sequence has no clip markers.\nRe-run import_precomps_to_comp.jsx.");
+                alert("Symbol_Cell_1 has no clip markers.\nRe-run import_precomps_to_comp.jsx.");
                 return;
             }
 
             try {
                 app.beginUndoGroup("Setup Trigger Remap");
 
-                // Find or add the Symbol_Sequence layer in Master
+                // Find or add the Symbol_Cell_1 layer in Master
                 var seqLayer = null;
                 for (var li = 1; li <= masterComp.layers.length; li++) {
                     var l = masterComp.layers[li];
-                    if ((l.source instanceof CompItem) && l.source.name === "Symbol_Sequence") {
+                    if ((l.source instanceof CompItem) && l.source.name === "Symbol_Cell_1") {
                         seqLayer = l; break;
                     }
                 }

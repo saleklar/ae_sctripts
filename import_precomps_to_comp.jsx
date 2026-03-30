@@ -1,6 +1,6 @@
 // Import Footage to Symbol Sequence
 // Scans all project FootageItems, groups them by numeric ID,
-// and places them directly into a single new "Symbol_Sequence" comp
+// and places them directly into a single new "Symbol_Cell_1" comp
 // in the order:  stat → land → win → pop  for each ID,
 // then moves to the next ID.  No sub-precomps are created.
 
@@ -80,22 +80,22 @@
     if (totalDur <= 0) totalDur = 10;
 
     // ----------------------------------------------------------------
-    // Step 4: Build Symbol_Sequence comp
+    // Step 4: Build Symbol_Cell_1 comp
     // ----------------------------------------------------------------
     try {
         app.beginUndoGroup("Import Footage to Symbol Sequence");
 
-        // Remove existing Symbol_Sequence
+        // Remove existing Symbol_Cell_1
         for (var di = app.project.items.length; di >= 1; di--) {
             var ditem;
             try { ditem = app.project.items[di]; } catch (e) { continue; }
-            if ((ditem instanceof CompItem) && ditem.name === "Symbol_Sequence") {
+            if ((ditem instanceof CompItem) && ditem.name === "Symbol_Cell_1") {
                 try { ditem.remove(); } catch (e) {}
                 break;
             }
         }
 
-        var seqComp = app.project.items.addComp("Symbol_Sequence", compSize, compSize, 1, totalDur, fr);
+        var seqComp = app.project.items.addComp("Symbol_Cell_1", compSize, compSize, 1, totalDur, fr);
         var cx = compSize / 2, cy = compSize / 2;
         var cursor = 0;
 
@@ -123,7 +123,7 @@
 
         alert(
             "Done!\n\n" +
-            "\"Symbol_Sequence\" created.\n" +
+            "\"Symbol_Cell_1\" created.\n" +
             "Symbols: " + validIds.length + "  |  IDs: " + validIds.join(", ") + "\n" +
             "Total duration: " + totalDur.toFixed(2) + "s  (" + Math.round(totalDur * fr) + " frames)"
         );
