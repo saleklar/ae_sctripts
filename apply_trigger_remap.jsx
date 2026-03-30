@@ -1,12 +1,13 @@
 // Trigger Remap Panel
 // Dockable ScriptUI panel.
-// 1. Click "Setup Remap" to add reel_1 to Master comp and apply
-//    the time-remap expression (referenced against Symbol_Cell_1 markers).
-// 2. Pick a clip from the dropdown and click "Place Marker" to stamp
-//    that clip name as a marker at the current Master comp playhead position.
-// 3. Click "Refresh" to reload the clip list from Symbol_Cell_1 markers.
+// "Setup Remap" adds Symbol_Cell_1..4 directly into Master, stacked
+// vertically, each with independent Time Remap driven by that layer's
+// own layer markers (thisLayer.marker expression).
+// Each cell row has its own dropdown + "Place Marker" button.
 
 (function (thisObj) {
+
+    var CELL_COUNT = 4;
 
     // ----------------------------------------------------------------
     // Helpers
@@ -22,10 +23,12 @@
         return null;
     }
 
-    function buildTimeRemapExpr(seqName) {
+    // thisLayer.marker for per-layer trigger lookup;
+    // comp("Symbol_Cell_1").marker for clip start/end table (all cells identical)
+    function buildTimeRemapExpr() {
         return (
             'var trigName = ""; var trigTime = -1;' +
-            'var mm = thisComp.marker;' +
+            'var mm = thisLayer.marker;' +
             'for (var mi = 1; mi <= mm.numKeys; mi++) {' +
             '  var mt = mm.key(mi).time;' +
             '  if (mt <= time && mt > trigTime) { trigTime = mt; trigName = mm.key(mi).comment; }' +
@@ -33,13 +36,13 @@
             'if (trigName === "" || trigTime < 0) {' +
             '  0;' +
             '} else {' +
-            '  var sm = comp("' + seqName + '").marker;' +
+            '  var sm = comp("Symbol_Cell_1").marker;' +
             '  var clipStart = -1;' +
-            '  var clipEnd   = comp("' + seqName + '").duration;' +
+            '  var clipEnd   = comp("Symbol_Cell_1").duration;' +
             '  for (var si = 1; si <= sm.numKeys; si++) {' +
             '    if (sm.key(si).comment === trigName) {' +
             '      clipStart = sm.key(si).time;' +
-            '      clipEnd   = (si < sm.numKeys) ? sm.key(si+1).time : comp("' + seqName + '").duration;' +
+            '      clipEnd   = (si < sm.numKeys) ? sm.key(si+1).time : comp("Symbol_Cell_1").duration;' +
             '      break;' +
             '    }' +
             '  }' +
@@ -66,38 +69,88 @@
         var statusTxt = win.add("statictext", undefined, "No project open", { truncate: "end" });
         statusTxt.alignment = ["fill", "top"];
 
-        win.add("panel").preferredSize.height = 1; // divider
+        win.add("panel").preferredSize.height = 1;
 
         // Setup button
-        var setupBtn = win.add("button", undefined, "Setup Remap (Master + reel_1)");
-        setupBtn.helpTip = "Adds reel_1 to Master comp and applies Time Remap expression";
+        var setupBtn = win.add("button", undefined, "Setup Remap (Add Cells 1-4 to Master)");
+        setupBtn.helpTip = "Adds Symbol_Cell_1..4 into Master stacked vertically, each with independent Time Remap";
 
-        win.add("panel").preferredSize.height = 1; // divider
+        win.add("panel").preferredSize.height = 1;
 
-        // Dropdown + place marker row
-        var row = win.add("group");
-        row.orientation = "row";
-        row.alignChildren = ["fill", "center"];
-        row.spacing = 4;
+        // Per-cell rows
+        var dropdowns = [];
+        var placeBtns = [];
 
-        var dd = row.add("dropdownlist", undefined, []);
-        dd.alignment = ["fill", "center"];
-        dd.preferredSize.width = 160;
+        for (var ci = 0; ci < CELL_COUNT; ci++) {
+            var cellNum = ci + 1;
 
-        var placeBtn = row.add("button", undefined, "Place Marker");
-        placeBtn.preferredSize.width = 100;
+            var row = win.add("group");
+            row.orientation = "row";
+            row.alignChildren = ["left", "center"];
+            row.spacing = 4;
 
-        // Refresh button
-        var refreshBtn = win.add("button", undefined, "⟳ Refresh Clip List");
+            var lbl = row.add("statictext", undefined, "Cell " + cellNum + ":");
+            lbl.preferredSize.width = 40;
+
+            var dd = row.add("dropdownlist", undefined, []);
+            dd.preferredSize.width = 150;
+
+            var btn = row.add("button", undefined, "Place Marker");
+            btn.preferredSize.width = 90;
+
+            dropdowns.push(dd);
+            placeBtns.push(btn);
+
+            // Closure to capture cellNum, dd, btn
+            (function (idx, dropdown, placeBtn) {
+                placeBtn.onClick = function () {
+                    if (!dropdown.selection) { alert("Select a clip for Cell " + idx + " first."); return; }
+                    if (!app.project) { alert("No project open."); return; }
+
+                    var masterComp = findComp("Master");
+                    if (!masterComp) { alert("No \"Master\" comp found."); return; }
+
+                    var cellLayerName = "Symbol_Cell_" + idx;
+                    var cellLayer = null;
+                    for (var li = 1; li <= masterComp.layers.length; li++) {
+                        var l = masterComp.layers[li];
+                        if ((l.source instanceof CompItem) && l.source.name === cellLayerName) {
+                            cellLayer = l; break;
+                        }
+                    }
+                    if (!cellLayer) {
+                        alert("\"" + cellLayerName + "\" layer not found in Master.\nRun Setup Remap first.");
+                        return;
+                    }
+
+                    var clipName = dropdown.selection.text;
+                    var t = masterComp.time;
+
+                    try {
+                        app.beginUndoGroup("Place Trigger Marker Cell " + idx);
+                        cellLayer.property("Marker").setValueAtTime(t, new MarkerValue(clipName));
+                        statusTxt.text = "Cell " + idx + ": \"" + clipName + "\" @ " + t.toFixed(3) + "s";
+                    } catch (e) {
+                        alert("Error: " + e.toString());
+                    } finally {
+                        app.endUndoGroup();
+                    }
+                };
+            })(cellNum, dd, btn);
+        }
+
+        win.add("panel").preferredSize.height = 1;
+
+        var refreshBtn = win.add("button", undefined, "\u27F3 Refresh Clip Lists");
 
         // ----------------------------------------------------------------
-        // Logic
+        // Refresh all dropdowns from Symbol_Cell_1 markers
+        // (all cells share identical clip timeline)
         // ----------------------------------------------------------------
-        function refreshList() {
-            dd.removeAll();
+        function refreshLists() {
             var seqComp = findComp("Symbol_Cell_1");
             if (!seqComp) {
-                statusTxt.text = "Symbol_Cell_1 not found";
+                statusTxt.text = "Symbol_Cell_1 not found - run import script first";
                 return;
             }
             var nm = seqComp.markerProperty.numKeys;
@@ -105,84 +158,85 @@
                 statusTxt.text = "Symbol_Cell_1 has no markers";
                 return;
             }
+            var items = [];
             for (var mi = 1; mi <= nm; mi++) {
-                dd.add("item", seqComp.markerProperty.keyValue(mi).comment);
+                items.push(seqComp.markerProperty.keyValue(mi).comment);
             }
-            dd.selection = 0;
-            statusTxt.text = nm + " clips loaded from Symbol_Cell_1";
+            for (var di = 0; di < dropdowns.length; di++) {
+                dropdowns[di].removeAll();
+                for (var ii = 0; ii < items.length; ii++) {
+                    dropdowns[di].add("item", items[ii]);
+                }
+                dropdowns[di].selection = 0;
+            }
+            statusTxt.text = nm + " clips loaded for all " + CELL_COUNT + " cells";
         }
 
+        // ----------------------------------------------------------------
+        // Setup Remap
+        // ----------------------------------------------------------------
         setupBtn.onClick = function () {
             if (!app.project) { alert("No project open."); return; }
 
             var masterComp = findComp("Master");
-            var reelComp   = findComp("reel_1");
-            var seqComp    = findComp("Symbol_Cell_1");
-
             if (!masterComp) { alert("No \"Master\" comp found."); return; }
-            if (!reelComp)   { alert("No \"reel_1\" comp found.\nRun import_precomps_to_comp.jsx first."); return; }
-            if (!seqComp)    { alert("No \"Symbol_Cell_1\" comp found.\nRun import_precomps_to_comp.jsx first."); return; }
-            if (seqComp.markerProperty.numKeys === 0) {
+
+            var cell1 = findComp("Symbol_Cell_1");
+            if (!cell1) { alert("No \"Symbol_Cell_1\" comp found.\nRun import_precomps_to_comp.jsx first."); return; }
+            if (cell1.markerProperty.numKeys === 0) {
                 alert("Symbol_Cell_1 has no clip markers.\nRe-run import_precomps_to_comp.jsx.");
                 return;
             }
 
+            var compSize = cell1.width;
+            var halfCell = compSize / 2;
+            // Center the column horizontally in Master; top cell starts so block is vertically centered
+            var startX = masterComp.width / 2;
+            var startY = (masterComp.height - compSize * CELL_COUNT) / 2 + halfCell;
+
             try {
                 app.beginUndoGroup("Setup Trigger Remap");
 
-                // Find or add the reel_1 layer in Master
-                var reelLayer = null;
-                for (var li = 1; li <= masterComp.layers.length; li++) {
-                    var l = masterComp.layers[li];
-                    if ((l.source instanceof CompItem) && l.source.name === "reel_1") {
-                        reelLayer = l; break;
+                var expr = buildTimeRemapExpr();
+
+                for (var ci = 1; ci <= CELL_COUNT; ci++) {
+                    var cellComp = findComp("Symbol_Cell_" + ci);
+                    if (!cellComp) {
+                        alert("\"Symbol_Cell_" + ci + "\" not found.\nRun import_precomps_to_comp.jsx first.");
+                        return;
                     }
-                }
-                if (!reelLayer) {
-                    reelLayer = masterComp.layers.add(reelComp);
-                    reelLayer.startTime = 0;
-                    reelLayer.position.setValue([masterComp.width / 2, masterComp.height / 2]);
+
+                    var cellLayer = null;
+                    for (var li = 1; li <= masterComp.layers.length; li++) {
+                        var l = masterComp.layers[li];
+                        if ((l.source instanceof CompItem) && l.source.name === "Symbol_Cell_" + ci) {
+                            cellLayer = l; break;
+                        }
+                    }
+                    if (!cellLayer) {
+                        cellLayer = masterComp.layers.add(cellComp);
+                        cellLayer.startTime = 0;
+                        cellLayer.position.setValue([startX, startY + compSize * (ci - 1)]);
+                    }
+
+                    cellLayer.timeRemapEnabled = true;
+                    cellLayer.property("Time Remap").expression = expr;
                 }
 
-                // Time remap on reel_1, but expression references Symbol_Cell_1 markers
-                reelLayer.timeRemapEnabled = true;
-                reelLayer.property("Time Remap").expression = buildTimeRemapExpr(seqComp.name);
+                statusTxt.text = "Cells 1-" + CELL_COUNT + " added to Master. Place markers per cell.";
+                refreshLists();
 
-                statusTxt.text = "reel_1 added to Master with Remap. Place markers to trigger clips.";
-                refreshList();
             } catch (e) {
-                alert("Error: " + e.toString());
+                alert("Error: " + e.toString() + (e.line ? "\nLine: " + e.line : ""));
             } finally {
                 app.endUndoGroup();
             }
         };
 
-        placeBtn.onClick = function () {
-            if (!dd.selection) { alert("Select a clip from the list first."); return; }
-            if (!app.project)  { alert("No project open."); return; }
-
-            var masterComp = findComp("Master");
-            if (!masterComp) { alert("No \"Master\" comp found."); return; }
-
-            var clipName = dd.selection.text;
-            var t = masterComp.time;
-
-            try {
-                app.beginUndoGroup("Place Trigger Marker");
-                var mv = new MarkerValue(clipName);
-                masterComp.markerProperty.setValueAtTime(t, mv);
-                statusTxt.text = "Marker \"" + clipName + "\" placed at " + t.toFixed(3) + "s";
-            } catch (e) {
-                alert("Error placing marker: " + e.toString());
-            } finally {
-                app.endUndoGroup();
-            }
-        };
-
-        refreshBtn.onClick = function () { refreshList(); };
+        refreshBtn.onClick = function () { refreshLists(); };
 
         // Initial load
-        refreshList();
+        refreshLists();
 
         return win;
     }
