@@ -8,6 +8,10 @@
 (function (thisObj) {
 
     var CELL_COUNT = 4;
+    // Symbol IDs treated as "bubble" collectibles
+    var BUBBLE_IDS = {};
+    BUBBLE_IDS["13"] = 1; BUBBLE_IDS["22"] = 1; BUBBLE_IDS["23"] = 1;
+    BUBBLE_IDS["24"] = 1; BUBBLE_IDS["25"] = 1;
 
     // ----------------------------------------------------------------
     // Helpers
@@ -229,6 +233,19 @@
 
         var spinBtn = win.add("button", undefined, "\uD83C\uDFB0 Place Spin");
         spinBtn.helpTip = "Stamps 'spin_3' comp marker at playhead. Rename to spin_N for N loops. Drag end to set duration/speed.";
+
+        win.add("panel").preferredSize.height = 1;
+
+        var flyRow = win.add("group");
+        flyRow.orientation = "row";
+        flyRow.alignChildren = ["left", "center"];
+        flyRow.spacing = 4;
+        flyRow.add("statictext", undefined, "Fly Speed (s):");
+        var flySpeedInput = flyRow.add("edittext", undefined, "1.0");
+        flySpeedInput.preferredSize.width = 45;
+
+        var bubbleFlyBtn = win.add("button", undefined, "\uD83E\uDEF7 Bubble Fly");
+        bubbleFlyBtn.helpTip = "At current time: fades bubble cells (13/22-25) to 50%, flies a copy up to the shelf. Each subsequent bubble pushes shelf up.";
 
         // ----------------------------------------------------------------
         // Refresh all dropdowns from Symbol_Cell_1 markers
@@ -474,6 +491,210 @@
                 }
             } catch (e) {
                 alert("Error: " + e.toString());
+            } finally {
+                app.endUndoGroup();
+            }
+        };
+
+        // ----------------------------------------------------------------
+        // Bubble Fly
+        // ----------------------------------------------------------------
+        bubbleFlyBtn.onClick = function () {
+            if (!app.project) { alert("No project open."); return; }
+
+            var masterComp = findComp("Master");
+            if (!masterComp) { alert("No \"Master\" comp found."); return; }
+
+            var seqComp = findComp("Symbol_Cell_1");
+            if (!seqComp || seqComp.markerProperty.numKeys === 0) {
+                alert("Symbol_Cell_1 not found or has no markers."); return;
+            }
+
+            var compSize  = Math.round(seqComp.width / 1.5);
+            var fd        = 1.0 / masterComp.frameRate;
+            var flyDur    = parseFloat(flySpeedInput.text);
+            if (isNaN(flyDur) || flyDur <= 0) flyDur = 1.0;
+            var shiftDur  = Math.min(flyDur * 0.25, 0.4);
+            var t0        = masterComp.time;
+            var nm        = seqComp.markerProperty.numKeys;
+
+            // Find Reel_Ctrl null
+            var nullLayer = null;
+            for (var ni = 1; ni <= masterComp.layers.length; ni++) {
+                if (masterComp.layers[ni].name === "Reel_Ctrl") { nullLayer = masterComp.layers[ni]; break; }
+            }
+            if (!nullLayer) { alert("No Reel_Ctrl null. Run Setup Remap first."); return; }
+            var nullPos = nullLayer.position.value;
+            var nullX = nullPos[0], nullY = nullPos[1];
+
+            // Find shelf_reel_1 layer in Master
+            var shelfMasterLyr = null;
+            for (var smiB = 1; smiB <= masterComp.layers.length; smiB++) {
+                var smlB = masterComp.layers[smiB];
+                try { if ((smlB.source instanceof CompItem) && smlB.source.name === "shelf_reel_1") { shelfMasterLyr = smlB; break; } } catch(e0) {}
+            }
+            var shelfCompB = shelfMasterLyr ? shelfMasterLyr.source : findComp("shelf_reel_1");
+
+            // Shelf slot 4 (bottom) position in Master coords
+            var shelfParY = shelfMasterLyr ? shelfMasterLyr.position.value[1] : (-3 * compSize);
+            var shelf4Y   = nullY + shelfParY + (CELL_COUNT / 2 - 0.5) * compSize;
+
+            // --- clip lookup helpers ---
+            function bfMTime(name) {
+                for (var xi = 1; xi <= nm; xi++) {
+                    if (seqComp.markerProperty.keyValue(xi).comment === name) return seqComp.markerProperty.keyTime(xi);
+                } return -1;
+            }
+            function bfMEnd(name) {
+                for (var xi = 1; xi <= nm; xi++) {
+                    if (seqComp.markerProperty.keyValue(xi).comment === name) {
+                        return (xi < nm) ? seqComp.markerProperty.keyTime(xi + 1) : seqComp.duration;
+                    }
+                } return -1;
+            }
+
+            // --- find bubble cells at t0 (top-to-bottom order) ---
+            var bubbleCells = [];
+            for (var ci3 = 1; ci3 <= CELL_COUNT; ci3++) {
+                var clyr3 = null;
+                for (var li3 = 1; li3 <= masterComp.layers.length; li3++) {
+                    var ll3 = masterComp.layers[li3];
+                    try { if ((ll3.source instanceof CompItem) && ll3.source.name === "Symbol_Cell_" + ci3) { clyr3 = ll3; break; } } catch(e1) {}
+                }
+                if (!clyr3) continue;
+                var lastCmt3 = "", lastMT3 = -1;
+                var lm3 = clyr3.property("Marker");
+                for (var mk3 = 1; mk3 <= lm3.numKeys; mk3++) {
+                    var mt3 = lm3.keyTime(mk3);
+                    if (mt3 <= t0 && mt3 > lastMT3) { lastMT3 = mt3; lastCmt3 = lm3.keyValue(mk3).comment; }
+                }
+                if (lastCmt3 === "") continue;
+                var baseId3 = lastCmt3.split("_")[0];
+                if (BUBBLE_IDS[baseId3]) {
+                    bubbleCells.push({ ci: ci3, layer: clyr3, clip: lastCmt3 });
+                }
+            }
+            if (bubbleCells.length === 0) {
+                alert("No bubble symbol (IDs: 13, 22-25) found at current time.\nPlace stat markers for bubble symbols first.");
+                return;
+            }
+
+            // --- read current shelf Time Remap values at t0 ---
+            var shelfTimes3 = [];
+            for (var stsi = 1; stsi <= 4; stsi++) {
+                var stslL = null;
+                if (shelfCompB) {
+                    for (var stli = 1; stli <= shelfCompB.layers.length; stli++) {
+                        if (shelfCompB.layers[stli].name === "shelf_cell_" + stsi) { stslL = shelfCompB.layers[stli]; break; }
+                    }
+                }
+                try { shelfTimes3.push(stslL ? stslL.property("Time Remap").valueAtTime(t0, false) : 0); }
+                catch(e2) { shelfTimes3.push(0); }
+            }
+
+            var flyLog = [];
+            try {
+                app.beginUndoGroup("Bubble Fly");
+
+                for (var bi = 0; bi < bubbleCells.length; bi++) {
+                    var bc   = bubbleCells[bi];
+                    var launchT  = t0 + bi * flyDur;
+                    var arrivalT = launchT + flyDur;
+
+                    // 1. Reel cell fades to 50%
+                    var opPropB = bc.layer.property("Opacity");
+                    opPropB.setValueAtTime(launchT,      100);
+                    opPropB.setValueAtTime(launchT + fd,  50);
+
+                    // 2. Land clip info
+                    var liPosB   = bc.clip.lastIndexOf("_");
+                    var landClipB = (liPosB >= 0 ? bc.clip.substring(0, liPosB) : bc.clip) + "_land";
+                    var landStB   = bfMTime(landClipB);
+                    var landEnB   = bfMEnd(landClipB);
+                    var landDurB  = (landStB >= 0 && landEnB > landStB) ? (landEnB - landStB) : 1.0;
+                    var statTB    = bfMTime(bc.clip);
+
+                    // 3. Create fly layer in Master
+                    var flyLyr = masterComp.layers.add(seqComp);
+                    flyLyr.name = "bubble_fly_" + (bi + 1);
+                    flyLyr.moveToBeginning();
+                    flyLyr.inPoint  = launchT;
+                    flyLyr.outPoint = Math.min(arrivalT + landDurB + fd, masterComp.duration);
+
+                    // 4. Position: cell → shelf slot 4 (ease-out on arrival)
+                    var cellParYB = (-CELL_COUNT / 2 + bc.ci - 1 + 0.5) * compSize;
+                    var cellMYB   = nullY + cellParYB;
+                    var posPropB  = flyLyr.property("Position");
+                    posPropB.setValueAtTime(launchT,  [nullX, cellMYB]);
+                    posPropB.setValueAtTime(arrivalT, [nullX, shelf4Y]);
+                    try {
+                        posPropB.setTemporalEaseAtKey(1, [new KeyframeEase(0,   50)], [new KeyframeEase(100, 50)]);
+                        posPropB.setTemporalEaseAtKey(2, [new KeyframeEase(100,  0)], [new KeyframeEase(0,    0)]);
+                    } catch(eEaseB) {}
+
+                    // 5. Time Remap expression: stat during flight, land on arrival
+                    flyLyr.timeRemapEnabled = true;
+                    flyLyr.property("Time Remap").expression =
+                        'var aT=' + arrivalT + ';' +
+                        'var st=' + (statTB >= 0 ? statTB : 0) + ';' +
+                        'var ls=' + (landStB >= 0 ? landStB : 0) + ';' +
+                        'var ld=' + landDurB + ';' +
+                        'if(time<aT){st;}else{var el=time-aT;ls+Math.min(el,ld-thisComp.frameDuration);}';
+
+                    // 6. Shelf animation: each layer sweeps up by compSize then snaps back;
+                    //    content (Time Remap) swaps at snap point.
+                    if (shelfCompB) {
+                        var shWB = shelfCompB.width / 2;
+                        for (var ssiB = 1; ssiB <= 4; ssiB++) {
+                            var ssLL = null;
+                            for (var ssliB = 1; ssliB <= shelfCompB.layers.length; ssliB++) {
+                                if (shelfCompB.layers[ssliB].name === "shelf_cell_" + ssiB) { ssLL = shelfCompB.layers[ssliB]; break; }
+                            }
+                            if (!ssLL) continue;
+
+                            var origYB = compSize * (ssiB - 1) + compSize / 2;
+
+                            // Position: hold → sweep up → snap back
+                            var ppB = ssLL.property("Position");
+                            ppB.setValueAtTime(arrivalT,                [shWB, origYB]);
+                            ppB.setValueAtTime(arrivalT + shiftDur,     [shWB, origYB - compSize]);
+                            ppB.setValueAtTime(arrivalT + shiftDur + fd, [shWB, origYB]);
+
+                            // Top slot opacity: fade out during sweep, restore after snap
+                            if (ssiB === 1) {
+                                var topOpB = ssLL.property("Opacity");
+                                topOpB.setValueAtTime(arrivalT,                 100);
+                                topOpB.setValueAtTime(arrivalT + shiftDur,        0);
+                                topOpB.setValueAtTime(arrivalT + shiftDur + fd,  100);
+                            }
+
+                            // Time Remap: hold old value then snap to new at swap point
+                            var newTRB = (ssiB < 4) ? shelfTimes3[ssiB] : (statTB >= 0 ? statTB : 0);
+                            try { ssLL.property("Time Remap").expression = ""; } catch(e3B) {}
+                            var trPB = ssLL.property("Time Remap");
+                            while (trPB.numKeys > 0) trPB.removeKey(1);
+                            trPB.setValueAtTime(arrivalT,                  shelfTimes3[ssiB - 1]);
+                            trPB.setValueAtTime(arrivalT + shiftDur + fd,  newTRB);
+                            try {
+                                trPB.setInterpolationTypeAtKey(1, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
+                                trPB.setInterpolationTypeAtKey(2, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
+                            } catch(eKIB) {}
+                        }
+
+                        // Advance shelf state for next bubble in this batch
+                        var nextSTB = [];
+                        for (var nsiB = 1; nsiB < 4; nsiB++) nextSTB.push(shelfTimes3[nsiB]);
+                        nextSTB.push(statTB >= 0 ? statTB : 0);
+                        shelfTimes3 = nextSTB;
+                    }
+
+                    flyLog.push("Cell " + bc.ci + ": " + bc.clip);
+                }
+
+                statusTxt.text = "Bubble Fly @ " + t0.toFixed(3) + "s  \u2014  " + flyLog.join("  |  ");
+
+            } catch (e) {
+                alert("Error: " + e.toString() + (e.line ? "\nLine: " + e.line : ""));
             } finally {
                 app.endUndoGroup();
             }
