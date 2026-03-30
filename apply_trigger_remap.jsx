@@ -518,7 +518,7 @@
             var fd        = 1.0 / masterComp.frameRate;
             var flyDur    = parseFloat(flySpeedInput.text);
             if (isNaN(flyDur) || flyDur <= 0) flyDur = 1.0;
-            var shiftDur  = Math.min(flyDur * 0.25, 0.4);
+            // shiftDur is computed per-bubble based on flyDurB inside the loop
             var t0        = masterComp.time;
             var nm        = seqComp.markerProperty.numKeys;
 
@@ -627,10 +627,30 @@
                     }
                 }
 
+                // Pre-compute per-bubble travel distance and proportional fly duration.
+                // flyDur is the flight time for the FARTHEST bubble; closer cells scale shorter.
+                var maxDistB = 0;
+                for (var bdi = 0; bdi < bubbleCells.length; bdi++) {
+                    var bdc = bubbleCells[bdi];
+                    var bdParY = (-CELL_COUNT / 2 + bdc.ci - 1 + 0.5) * compSize;
+                    bdc.dist = (nullY + bdParY) - shelf4Y;
+                    if (bdc.dist > maxDistB) maxDistB = bdc.dist;
+                }
+                if (maxDistB <= 0) maxDistB = compSize;
+                var curLaunchT = t0;
+                for (var bdi2 = 0; bdi2 < bubbleCells.length; bdi2++) {
+                    bubbleCells[bdi2].flyDurB  = flyDur * (bubbleCells[bdi2].dist / maxDistB);
+                    bubbleCells[bdi2].launchT  = curLaunchT;
+                    bubbleCells[bdi2].arrivalT = curLaunchT + bubbleCells[bdi2].flyDurB;
+                    curLaunchT = bubbleCells[bdi2].arrivalT;  // next launches when this one arrives
+                }
+
                 for (var bi = 0; bi < bubbleCells.length; bi++) {
-                    var bc   = bubbleCells[bi];
-                    var launchT  = t0 + bi * flyDur;
-                    var arrivalT = launchT + flyDur;
+                    var bc       = bubbleCells[bi];
+                    var launchT  = bc.launchT;
+                    var arrivalT = bc.arrivalT;
+                    var flyDurB  = bc.flyDurB;
+                    var shiftDurB = Math.min(flyDurB * 0.25, 0.4);
 
                     // 1. Reel cell: instant fade to 50% on launch, stays faded.
                     //    Restores to 100% at the next spin marker after this launch.
@@ -677,11 +697,11 @@
                         posPropB.setTemporalEaseAtKey(2, [new KeyframeEase(100,  0)], [new KeyframeEase(0,    0)]);
                     } catch(eEaseB) {}
 
-                    // touchT: shelf starts sweeping shelfLead * flyDur before the bubble arrives
+                    // touchT: shelf starts sweeping shelfLead * flyDurB before the bubble arrives
                     var shelfLead = parseFloat(shelfLeadInput.text);
                     if (isNaN(shelfLead)) shelfLead = 0.5;
                     shelfLead = Math.max(0, Math.min(1, shelfLead));
-                    var touchT = Math.max(launchT, arrivalT - shelfLead * flyDur);
+                    var touchT = Math.max(launchT, arrivalT - shelfLead * flyDurB);
 
                     // 5. Time Remap expression: stat during flight, land on arrival
                     flyLyr.timeRemapEnabled = true;
@@ -707,16 +727,16 @@
                             // Position: sweep up on touchT (linear), snap back with hold
                             var ppB = ssLL.property("Position");
                             ppB.setValueAtTime(touchT,                 [shWB, origYB]);
-                            ppB.setValueAtTime(touchT + shiftDur,      [shWB, origYB - compSize]);
-                            ppB.setValueAtTime(touchT + shiftDur + fd, [shWB, origYB]);
+                            ppB.setValueAtTime(touchT + shiftDurB,      [shWB, origYB - compSize]);
+                            ppB.setValueAtTime(touchT + shiftDurB + fd, [shWB, origYB]);
                             try {
                                 for (var kki = 1; kki <= ppB.numKeys; kki++) {
                                     var kkt = ppB.keyTime(kki);
                                     if (Math.abs(kkt - touchT) < fd * 0.5) {
                                         ppB.setInterpolationTypeAtKey(kki, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
-                                    } else if (Math.abs(kkt - (touchT + shiftDur)) < fd * 0.5) {
+                                    } else if (Math.abs(kkt - (touchT + shiftDurB)) < fd * 0.5) {
                                         ppB.setInterpolationTypeAtKey(kki, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.HOLD);
-                                    } else if (Math.abs(kkt - (touchT + shiftDur + fd)) < fd * 0.5) {
+                                    } else if (Math.abs(kkt - (touchT + shiftDurB + fd)) < fd * 0.5) {
                                         ppB.setInterpolationTypeAtKey(kki, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
                                     }
                                 }
@@ -726,14 +746,14 @@
                             if (ssiB === 1) {
                                 var topOpB = ssLL.property("Opacity");
                                 topOpB.setValueAtTime(touchT,                 100);
-                                topOpB.setValueAtTime(touchT + shiftDur,        0);
-                                topOpB.setValueAtTime(touchT + shiftDur + fd,  100);
+                                topOpB.setValueAtTime(touchT + shiftDurB,        0);
+                                topOpB.setValueAtTime(touchT + shiftDurB + fd,  100);
                                 try {
                                     for (var koi = 1; koi <= topOpB.numKeys; koi++) {
                                         var kot = topOpB.keyTime(koi);
                                         if (Math.abs(kot - touchT) < fd * 0.5) {
                                             topOpB.setInterpolationTypeAtKey(koi, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
-                                        } else if (Math.abs(kot - (touchT + shiftDur)) < fd * 0.5) {
+                                        } else if (Math.abs(kot - (touchT + shiftDurB)) < fd * 0.5) {
                                             topOpB.setInterpolationTypeAtKey(koi, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.HOLD);
                                         }
                                     }
@@ -742,13 +762,13 @@
 
                             // Time Remap: stat → land during sweep → new stat after snap
                             var newTRB      = (ssiB < 4) ? shelfTimes3[ssiB] : (statTB >= 0 ? statTB : 0);
-                            var swapT       = touchT + shiftDur + fd;
+                            var swapT       = touchT + shiftDurB + fd;
                             var slotClip    = shelfClips3[ssiB - 1];
                             var slotLiPos   = slotClip.lastIndexOf("_");
                             var slotLandClip = (slotLiPos >= 0 ? slotClip.substring(0, slotLiPos) : slotClip) + "_land";
                             var slotLandSt  = bfMTime(slotLandClip);
                             var slotLandEn  = bfMEnd(slotLandClip);
-                            var slotLandDur = (slotLandSt >= 0 && slotLandEn > slotLandSt) ? (slotLandEn - slotLandSt) : shiftDur;
+                            var slotLandDur = (slotLandSt >= 0 && slotLandEn > slotLandSt) ? (slotLandEn - slotLandSt) : shiftDurB;
                             var oldStatTR   = shelfTimes3[ssiB - 1];
                             try {
                                 if (slotLandSt >= 0) {
