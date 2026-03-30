@@ -32,19 +32,21 @@
         var lower = fname.toLowerCase();
 
         if (!groups[id]) {
-            groups[id] = { stat: null, land: null, win: null, pop: null };
+            groups[id] = { stat: null, land: null, win: null, pop: null, empty: null };
             idOrder.push(id);
         }
 
-        var isLand = lower.indexOf("land") !== -1;
-        var isWin  = lower.indexOf("win")  !== -1;
-        var isPop  = lower.indexOf("pop")  !== -1;
-        var isStat = lower.indexOf("stat") !== -1 || lower.indexOf("idle") !== -1 || lower.indexOf("static") !== -1;
+        var isLand  = lower.indexOf("land")   !== -1;
+        var isWin   = lower.indexOf("win")    !== -1;
+        var isPop   = lower.indexOf("pop")    !== -1;
+        var isEmpty = lower.indexOf("empty")  !== -1;
+        var isStat  = lower.indexOf("stat")   !== -1 || lower.indexOf("idle") !== -1 || lower.indexOf("static") !== -1;
 
-        if      (isLand) groups[id].land = fitem;
-        else if (isPop)  groups[id].pop  = fitem;
-        else if (isWin)  groups[id].win  = fitem;
-        else if (isStat) groups[id].stat = fitem;
+        if      (isEmpty) groups[id].empty = fitem;
+        else if (isLand)  groups[id].land  = fitem;
+        else if (isPop)   groups[id].pop   = fitem;
+        else if (isWin)   groups[id].win   = fitem;
+        else if (isStat)  groups[id].stat  = fitem;
         // Fallback: any remaining footage for this ID (e.g. plain PNG) treated as stat
         else if (!groups[id].stat) groups[id].stat = fitem;
     }
@@ -53,7 +55,7 @@
     var validIds = [];
     for (var vi = 0; vi < idOrder.length; vi++) {
         var g = groups[idOrder[vi]];
-        if (g.stat || g.land || g.win || g.pop) validIds.push(idOrder[vi]);
+        if (g.stat || g.land || g.win || g.pop || g.empty) validIds.push(idOrder[vi]);
     }
 
     if (validIds.length === 0) {
@@ -125,7 +127,7 @@
 
             for (var si = 0; si < validIds.length; si++) {
                 var grp = groups[validIds[si]];
-                var order = ["stat", "land", "win", "pop"];
+                var order = ["stat", "land", "win", "pop", "empty"];
 
                 for (var oi = 0; oi < order.length; oi++) {
                     var ftg = grp[order[oi]];
@@ -168,10 +170,11 @@
             var dg = groups[validIds[dgi]];
             diagLines.push(
                 validIds[dgi] + ": " +
-                "stat=" + (dg.stat ? dg.stat.name : "—") + "  " +
-                "land=" + (dg.land ? "yes" : "—") + "  " +
-                "win="  + (dg.win  ? "yes" : "—") + "  " +
-                "pop="  + (dg.pop  ? "yes" : "—")
+                "stat="  + (dg.stat  ? dg.stat.name : "—") + "  " +
+                "land="  + (dg.land  ? "yes" : "—") + "  " +
+                "win="   + (dg.win   ? "yes" : "—") + "  " +
+                "pop="   + (dg.pop   ? "yes" : "—") + "  " +
+                "empty=" + (dg.empty ? "yes" : "—")
             );
         }
 
