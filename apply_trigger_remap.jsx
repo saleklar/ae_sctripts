@@ -194,12 +194,6 @@
             var startX = masterComp.width / 2;
             var startY = (masterComp.height - compSize * CELL_COUNT) / 2 + halfCell;
 
-            // Null position: center of Master; cell positions expressed relative to null
-            var nullX = masterComp.width  / 2;
-            var nullY = masterComp.height / 2;
-            // relative Y of cell ci anchor = (startY + compSize*(ci-1)) - nullY
-            var relBaseY = startY - nullY;  // relative Y for ci=1
-
             try {
                 app.beginUndoGroup("Setup Trigger Remap");
 
@@ -215,7 +209,7 @@
                 if (!nullLayer) {
                     nullLayer = masterComp.layers.addNull();
                     nullLayer.name = "Reel_Ctrl";
-                    nullLayer.position.setValue([nullX, nullY]);
+                    nullLayer.position.setValue([startX, masterComp.height / 2]);
                 }
 
                 for (var ci = 1; ci <= CELL_COUNT; ci++) {
@@ -235,11 +229,11 @@
                     if (!cellLayer) {
                         cellLayer = masterComp.layers.add(cellComp);
                         cellLayer.startTime = 0;
-                        // Position relative to null so block is centered when null is at master center
-                        cellLayer.position.setValue([0, relBaseY + compSize * (ci - 1)]);
+                        // Set absolute comp position first — AE auto-converts to parent-relative on parenting
+                        cellLayer.position.setValue([startX, startY + compSize * (ci - 1)]);
                     }
 
-                    // Parent to null
+                    // Parent to null (AE recalculates position values to stay visually in place)
                     cellLayer.parent = nullLayer;
 
                     cellLayer.timeRemapEnabled = true;
