@@ -186,25 +186,23 @@
                     // Variant IDs (e.g. "13_1") get a number overlay
                     var vParts = validIds[si].match(/^(\d+)_(\d+)$/);
                     if (vParts && order[oi] !== "empty") {
-                        try {
-                            var tl = seqComp.layers.addText(vParts[2]);
-                            var tProp = tl.property("Source Text");
-                            var tDoc  = tProp.value;
-                            tDoc.font             = variantFont;
-                            tDoc.fontSize         = variantFontSize;
-                            tDoc.fillColor        = [1, 1, 1];
-                            tDoc.applyFill        = true;
-                            tDoc.strokeColor      = [0, 0, 0];
-                            tDoc.strokeWidth      = 2;
-                            tDoc.applyStroke      = true;
-                            tDoc.strokeOverFill   = false;
-                            tDoc.justification    = ParagraphJustification.CENTER_JUSTIFY;
-                            tProp.setValue(tDoc);
-                            tl.position.setValue([cx, cy]);
-                            tl.startTime = cursor;
-                            tl.outPoint  = cursor + clipDur;
-                            tl.name      = clipName + "_num";
-                        } catch (te) { /* font not found — skip overlay */ }
+                        var tl = seqComp.layers.addText(vParts[2]);
+                        var tProp = tl.property("Source Text");
+                        var tDoc  = tProp.value;
+                        tDoc.font             = variantFont;
+                        tDoc.fontSize         = variantFontSize;
+                        tDoc.fillColor        = [1, 1, 1];
+                        tDoc.applyFill        = true;
+                        tDoc.strokeColor      = [0, 0, 0];
+                        tDoc.strokeWidth      = 2;
+                        tDoc.applyStroke      = true;
+                        tDoc.strokeOverFill   = false;
+                        tDoc.justification    = ParagraphJustification.CENTER_JUSTIFY;
+                        tProp.setValue(tDoc);
+                        tl.position.setValue([cx, cy]);
+                        tl.startTime = cursor;
+                        tl.outPoint  = cursor + clipDur;
+                        tl.name      = clipName + "_num";
                     }
 
                     cursor += clipDur;
