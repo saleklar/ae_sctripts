@@ -77,12 +77,13 @@
     // Step 3: Measure total duration — sum of every clip that exists
     // ----------------------------------------------------------------
     var totalDur = 0;
+    var fd = 1 / fr;  // one frame
     for (var ti = 0; ti < validIds.length; ti++) {
         var tg = groups[validIds[ti]];
-        if (tg.stat)  totalDur += tg.stat.duration;
-        if (tg.land)  totalDur += tg.land.duration;
-        if (tg.win)   totalDur += tg.win.duration;
-        if (tg.pop)   totalDur += tg.pop.duration;
+        if (tg.stat)  totalDur += Math.max(tg.stat.duration, fd);
+        if (tg.land)  totalDur += Math.max(tg.land.duration, fd);
+        if (tg.win)   totalDur += Math.max(tg.win.duration,  fd);
+        if (tg.pop)   totalDur += Math.max(tg.pop.duration,  fd);
     }
     if (totalDur <= 0) totalDur = 10;
 
@@ -114,15 +115,18 @@
                 var ftg = grp[order[oi]];
                 if (!ftg) continue;
 
+                // Still images report duration ~0 — clamp to at least 1 frame
+                var clipDur = Math.max(ftg.duration, fd);
+
                 var layer = seqComp.layers.add(ftg);
                 layer.startTime = cursor;
-                layer.outPoint  = cursor + ftg.duration;
+                layer.outPoint  = cursor + clipDur;
                 layer.position.setValue([cx, cy]);
                 var clipName = validIds[si] + "_" + order[oi];
                 layer.name = clipName;
                 // Marker on seqComp at clip start — acts as lookup table for trigger expression
                 seqComp.markerProperty.setValueAtTime(cursor, new MarkerValue(clipName));
-                cursor += ftg.duration;
+                cursor += clipDur;
             }
         }
 
