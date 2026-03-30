@@ -111,7 +111,10 @@
                 layer.startTime = cursor;
                 layer.outPoint  = cursor + ftg.duration;
                 layer.position.setValue([cx, cy]);
-                layer.name = validIds[si] + "_" + order[oi];
+                var clipName = validIds[si] + "_" + order[oi];
+                layer.name = clipName;
+                // Marker on seqComp at clip start — acts as lookup table for trigger expression
+                seqComp.markerProperty.setValueAtTime(cursor, new MarkerValue(clipName));
                 cursor += ftg.duration;
             }
         }
