@@ -760,31 +760,16 @@
                                 } catch(eOiB) {}
                             }
 
-                            // Time Remap: stat → land during sweep → new stat after snap
-                            var newTRB      = (ssiB < 4) ? shelfTimes3[ssiB] : (statTB >= 0 ? statTB : 0);
+                            // Time Remap: hold own stat throughout the physical move,
+                            // snap to new content only after position snaps back.
+                            // Slot 4 → new bubble; slots 1-3 → each takes the content
+                            // from the slot below (creating the push-up illusion).
                             var swapT       = touchT + shiftDurB + fd;
-                            var slotClip    = shelfClips3[ssiB - 1];
-                            var slotLiPos   = slotClip.lastIndexOf("_");
-                            var slotLandClip = (slotLiPos >= 0 ? slotClip.substring(0, slotLiPos) : slotClip) + "_land";
-                            var slotLandSt  = bfMTime(slotLandClip);
-                            var slotLandEn  = bfMEnd(slotLandClip);
-                            var slotLandDur = (slotLandSt >= 0 && slotLandEn > slotLandSt) ? (slotLandEn - slotLandSt) : shiftDurB;
                             var oldStatTR   = shelfTimes3[ssiB - 1];
+                            var afterSwapTR = (ssiB < 4) ? shelfTimes3[ssiB] : (statTB >= 0 ? statTB : 0);
                             try {
-                                if (slotLandSt >= 0) {
-                                    // three phases: hold stat | play land during sweep | snap to new stat
-                                    ssLL.property("Time Remap").expression =
-                                        'var tT=' + touchT + ';var sT=' + swapT + ';' +
-                                        'var ls=' + slotLandSt + ';var ld=' + slotLandDur + ';' +
-                                        'var fd=thisComp.frameDuration;' +
-                                        'if(time<tT){' + oldStatTR + ';}' +
-                                        'else if(time<sT){ls+Math.min(time-tT,ld-fd);}' +
-                                        'else{' + newTRB + ';}';
-                                } else {
-                                    // no land clip found — hold then swap
-                                    ssLL.property("Time Remap").expression =
-                                        'time < ' + swapT + ' ? ' + oldStatTR + ' : ' + newTRB + ';';
-                                }
+                                ssLL.property("Time Remap").expression =
+                                    'time < ' + swapT + ' ? ' + oldStatTR + ' : ' + afterSwapTR + ';';
                             } catch(e3B) {}
                         }
 
