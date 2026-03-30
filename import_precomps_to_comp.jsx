@@ -64,17 +64,25 @@
     // ----------------------------------------------------------------
     var VARIANT_BASE    = "13";
     var VARIANT_COUNT   = 9;
-    var variantBaseIdx  = validIds.indexOf(VARIANT_BASE);
+    // ES3-safe indexOf
+    var variantBaseIdx = -1;
+    for (var vbi = 0; vbi < validIds.length; vbi++) {
+        if (validIds[vbi] === VARIANT_BASE) { variantBaseIdx = vbi; break; }
+    }
     if (variantBaseIdx !== -1) {
-        validIds.splice(variantBaseIdx, 1);   // remove plain "13"
-        var variantInsert = [];
+        // Build expanded list: items before "13", then 13_1..13_9, then items after
+        var before = [], after = [];
+        for (var vbi2 = 0; vbi2 < validIds.length; vbi2++) {
+            if (vbi2 < variantBaseIdx)      before.push(validIds[vbi2]);
+            else if (vbi2 > variantBaseIdx) after.push(validIds[vbi2]);
+        }
+        var variants = [];
         for (var vn = 1; vn <= VARIANT_COUNT; vn++) {
             var vid = VARIANT_BASE + "_" + vn;
             groups[vid] = groups[VARIANT_BASE]; // same footage reference
-            variantInsert.push(vid);
+            variants.push(vid);
         }
-        // Insert variants where "13" was
-        Array.prototype.splice.apply(validIds, [variantBaseIdx, 0].concat(variantInsert));
+        validIds = before.concat(variants).concat(after);
     }
 
     if (validIds.length === 0) {
