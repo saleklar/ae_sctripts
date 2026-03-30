@@ -111,6 +111,7 @@
                 layer.startTime = cursor;
                 layer.outPoint  = cursor + ftg.duration;
                 layer.position.setValue([cx, cy]);
+                layer.name = validIds[si] + "_" + order[oi];
                 cursor += ftg.duration;
             }
         }
