@@ -178,15 +178,7 @@
 
         win.add("panel").preferredSize.height = 1;
 
-        var spinRow = win.add("group");
-        spinRow.orientation = "row";
-        spinRow.alignChildren = ["left", "center"];
-        spinRow.spacing = 4;
-        spinRow.add("statictext", undefined, "Spin dur(s):");
-        var spinDurField = spinRow.add("edittext", undefined, "2.0");
-        spinDurField.preferredSize.width = 45;
-        var spinBtn = spinRow.add("button", undefined, "\uD83C\uDFB0 Place Spin");
-        spinBtn.preferredSize.width = 100;
+        var spinBtn = win.add("button", undefined, "\uD83C\uDFB0 Place Spin");
         spinBtn.helpTip = "Stamps a 'spin' comp marker at the Master playhead; Reel_Ctrl Y will animate 3 conveyor cycles";
 
         // ----------------------------------------------------------------
@@ -287,8 +279,7 @@
                 }
 
                 // Apply spin expression to Reel_Ctrl position
-                var spinDurVal = parseFloat(spinDurField.value);
-                if (isNaN(spinDurVal) || spinDurVal <= 0) spinDurVal = 2.0;
+                var spinDurVal = 2.0;
                 nullLayer.property("Position").expression = buildSpinExpr(compSize, spinDurVal);
 
                 statusTxt.text = "Setup done. Cells parented to Reel_Ctrl. Spin expr applied (" + spinDurVal + "s).";
@@ -308,8 +299,7 @@
             var masterComp = findComp("Master");
             if (!masterComp) { alert("No \"Master\" comp found."); return; }
 
-            var spinDurVal = parseFloat(spinDurField.value);
-            if (isNaN(spinDurVal) || spinDurVal <= 0) { alert("Invalid spin duration."); return; }
+            var spinDurVal = 2.0;
 
             var cell1 = findComp("Symbol_Cell_1");
             if (!cell1) { alert("Symbol_Cell_1 not found.\nRun Setup Remap first."); return; }
