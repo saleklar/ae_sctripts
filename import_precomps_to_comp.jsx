@@ -16,6 +16,7 @@
     // ----------------------------------------------------------------
     var groups  = {};
     var idOrder = [];
+    var numbImgs = {};  // variant number PNG overlays: numbImgs["1"] = FootageItem for 1_numb.png
 
     for (var i = 1; i <= app.project.items.length; i++) {
         var fitem;
@@ -25,11 +26,19 @@
         if (!(fitem.mainSource instanceof FileSource)) continue;
 
         var fname   = fitem.name;
+        var lower   = fname.toLowerCase();
+
+        // Collect number overlay PNGs (e.g. 1_numb.png, 2_numb.png)
+        if (lower.indexOf("_numb") !== -1) {
+            var nMatch = fname.match(/(\d+)/);
+            if (nMatch) { numbImgs[nMatch[1]] = fitem; }
+            continue;  // don't add to symbol groups
+        }
+
         var idMatch = fname.match(/(\d+)/);
         if (!idMatch) continue;
 
         var id    = idMatch[1];
-        var lower = fname.toLowerCase();
 
         if (!groups[id]) {
             groups[id] = { stat: null, land: null, win: null, pop: null, empty: null };
@@ -104,15 +113,6 @@
     var compSize = parseInt(sizeInput, 10);
     if (isNaN(compSize) || compSize <= 0) { alert("Invalid size."); return; }
 
-    // Variant number overlay settings
-    var fontInput = prompt("Variant overlay font (PostScript name):", "BlueWinter-Regular");
-    if (fontInput === null) return;
-    var variantFont = fontInput;
-    var fontSzInput = prompt("Variant overlay font size (px):", String(Math.round(compSize * 0.2)));
-    if (fontSzInput === null) return;
-    var variantFontSize = parseInt(fontSzInput, 10);
-    if (isNaN(variantFontSize) || variantFontSize <= 0) variantFontSize = Math.round(compSize * 0.2);
-
     // ----------------------------------------------------------------
     // Step 3: Measure total duration — sum of every clip that exists
     // ----------------------------------------------------------------
@@ -183,26 +183,17 @@
                     // Marker on seqComp at clip start — acts as lookup table for trigger expression
                     seqComp.markerProperty.setValueAtTime(cursor, new MarkerValue(clipName));
 
-                    // Variant IDs (e.g. "13_1") get a number overlay
+                    // Variant IDs (e.g. "13_1") get a number overlay from x_numb.png images
                     var vParts = validIds[si].match(/^(\d+)_(\d+)$/);
                     if (vParts && order[oi] !== "empty") {
-                        var tl = seqComp.layers.addText(vParts[2]);
-                        var tProp = tl.property("Source Text");
-                        var tDoc  = tProp.value;
-                        tDoc.font             = variantFont;
-                        tDoc.fontSize         = variantFontSize;
-                        tDoc.fillColor        = [1, 1, 1];
-                        tDoc.applyFill        = true;
-                        tDoc.strokeColor      = [0, 0, 0];
-                        tDoc.strokeWidth      = 2;
-                        tDoc.applyStroke      = true;
-                        tDoc.strokeOverFill   = false;
-                        tDoc.justification    = ParagraphJustification.CENTER_JUSTIFY;
-                        tProp.setValue(tDoc);
-                        tl.position.setValue([cx, cy]);
-                        tl.startTime = cursor;
-                        tl.outPoint  = cursor + clipDur;
-                        tl.name      = clipName + "_num";
+                        var numbFtg = numbImgs[vParts[2]];
+                        if (numbFtg) {
+                            var nl = seqComp.layers.add(numbFtg);
+                            nl.startTime = cursor;
+                            nl.outPoint  = cursor + clipDur;
+                            nl.position.setValue([cx, cy]);
+                            nl.name      = clipName + "_num";
+                        }
                     }
 
                     cursor += clipDur;
@@ -272,12 +263,16 @@
             );
         }
 
+        var numbCount = 0;
+        for (var nk in numbImgs) { if (numbImgs[nk]) numbCount++; }
+
         alert(
             "Done!\n\n" +
-            "4× Symbol_Cell comps created and stacked in \"reel_1\".\n" +
-            "Cell canvas: " + drawSize + " × " + drawSize + " px  (spacing unit: " + compSize + " px)\n" +
-            "reel_1 size: " + reelW + " × " + reelH + " px\n" +
-            "Symbols: " + validIds.length + "  |  Total: " + totalDur.toFixed(2) + "s  (" + Math.round(totalDur * fr) + " frames)\n\n" +
+            "4\u00d7 Symbol_Cell comps created and stacked in \"reel_1\".\n" +
+            "Cell canvas: " + drawSize + " \u00d7 " + drawSize + " px  (spacing unit: " + compSize + " px)\n" +
+            "reel_1 size: " + reelW + " \u00d7 " + reelH + " px\n" +
+            "Symbols: " + validIds.length + "  |  Total: " + totalDur.toFixed(2) + "s  (" + Math.round(totalDur * fr) + " frames)\n" +
+            "Numb PNGs found: " + numbCount + " (need 1\u20139 for variant overlays)\n\n" +
             "Per-symbol:\n" + diagLines.join("\n")
         );
 

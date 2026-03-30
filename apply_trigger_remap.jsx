@@ -227,21 +227,6 @@
         var spinBtn = win.add("button", undefined, "\uD83C\uDFB0 Place Spin");
         spinBtn.helpTip = "Stamps 'spin_3' comp marker at playhead. Rename to spin_N for N loops. Drag end to set duration/speed.";
 
-        win.add("panel").preferredSize.height = 1;
-
-        // Variant number overlay font
-        var fontRow = win.add("group");
-        fontRow.orientation = "row";
-        fontRow.alignChildren = ["left", "center"];
-        fontRow.spacing = 4;
-        fontRow.add("statictext", undefined, "Font:").preferredSize.width = 30;
-        var fontEdit = fontRow.add("edittext", undefined, "BlueWinter-Regular");
-        fontEdit.preferredSize.width = 140;
-        fontEdit.helpTip = "PostScript font name for variant (13_1..13_9) number overlays";
-        var applyFontBtn = fontRow.add("button", undefined, "Apply");
-        applyFontBtn.preferredSize.width = 55;
-        applyFontBtn.helpTip = "Updates font on all _num text layers in Symbol_Cell_1..4";
-
         // ----------------------------------------------------------------
         // Refresh all dropdowns from Symbol_Cell_1 markers
         // (all cells share identical clip timeline)
@@ -372,56 +357,6 @@
 
             } catch (e) {
                 alert("Error: " + e.toString() + (e.line ? "\nLine: " + e.line : ""));
-            } finally {
-                app.endUndoGroup();
-            }
-        };
-
-        applyFontBtn.onClick = function () {
-            if (!app.project) { alert("No project open."); return; }
-            var fontName = fontEdit.text;
-            if (!fontName || fontName === "") { alert("Enter a font name."); return; }
-            var updated = 0;
-            var actualFont = "";
-            try {
-                app.beginUndoGroup("Apply Variant Font");
-                for (var fi = 1; fi <= CELL_COUNT; fi++) {
-                    var cellComp = findComp("Symbol_Cell_" + fi);
-                    if (!cellComp) continue;
-                    for (var li = 1; li <= cellComp.layers.length; li++) {
-                        var l = cellComp.layers[li];
-                        if (l.name.indexOf("_num") === l.name.length - 4 && l instanceof TextLayer) {
-                            var tp = l.property("Source Text");
-                            if (tp.numKeys > 0) {
-                                for (var ki = 1; ki <= tp.numKeys; ki++) {
-                                    var td = tp.keyValue(ki);
-                                    td.font = fontName;
-                                    tp.setValueAtKey(ki, td);
-                                    // Read back the actual PostScript name AE used
-                                    if (actualFont === "") actualFont = tp.keyValue(ki).font;
-                                }
-                            } else {
-                                var td2 = tp.value;
-                                td2.font = fontName;
-                                tp.setValue(td2);
-                                if (actualFont === "") actualFont = tp.value.font;
-                            }
-                            updated++;
-                        }
-                    }
-                }
-                if (updated === 0) {
-                    statusTxt.text = "No _num layers found. Re-run import script first.";
-                } else if (actualFont !== "" && actualFont !== fontName) {
-                    // AE substituted a different font — show the real name
-                    statusTxt.text = updated + " layers updated. AE used: \"" + actualFont + "\"";
-                    fontEdit.text = actualFont;  // auto-correct the field
-                    alert("Font substituted!\nYou typed:   \"" + fontName + "\"\nAE used:     \"" + actualFont + "\"\n\nThe field has been updated with the correct name.");
-                } else {
-                    statusTxt.text = "Font \"" + actualFont + "\" applied to " + updated + " layers.";
-                }
-            } catch (e) {
-                alert("Error: " + e.toString());
             } finally {
                 app.endUndoGroup();
             }
