@@ -61,9 +61,9 @@
     // Null sits at reel center with no expression; cells wrap within the stack.
     // cellIndex is 0-based.
     function buildCellSpinExpr(cellIndex, compSize) {
-        var totalH = compSize * CELL_COUNT;
-        var top    = -(totalH / 2);       // top of reel in parent space
-        var baseY  = top + compSize * cellIndex;
+        var totalH  = compSize * CELL_COUNT;
+        var top     = -(totalH / 2);                        // top EDGE of reel in parent space
+        var baseY   = top + compSize * cellIndex + compSize / 2;  // CENTER of this cell
         return (
             'var spinDur = 2.0;' +
             'var cycles  = 3;' +
