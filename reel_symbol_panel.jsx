@@ -183,7 +183,11 @@
             app.beginUndoGroup("Reel Symbol Chart: set reel");
             var prop = freshRc.effect("Reel " + (reelIdx + 1) + " Symbol")("Slider");
             if (_keyMode) {
-                prop.setValueAtTime(freshRc.containingComp.time, symIdx);
+                var t = freshRc.containingComp.time;
+                prop.setValueAtTime(t, symIdx);
+                // Make it a hold keyframe so the value jumps instantly (no interpolation)
+                var ki = prop.nearestKeyIndex(t);
+                prop.setInterpolationTypeAtKey(ki, KeyframeInterpolationType.HOLD);
             } else {
                 prop.setValue(symIdx);
             }
