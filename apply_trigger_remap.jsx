@@ -679,19 +679,20 @@
                     var landDurB  = (landStB >= 0 && landEnB > landStB) ? (landEnB - landStB) : 1.0;
                     var statTB    = bfMTime(bc.clip);
 
-                    // 3. Create fly layer in Master
+                    // 3. Create fly layer in Master, parented to Reel_Ctrl null
                     var flyLyr = masterComp.layers.add(seqComp);
                     flyLyr.name = "bubble_fly_" + (bi + 1);
                     flyLyr.moveToBeginning();
                     flyLyr.inPoint  = launchT;
                     flyLyr.outPoint = Math.min(arrivalT + landDurB + fd, masterComp.duration);
+                    flyLyr.parent   = nullLayer;   // parent BEFORE keyframes so coords are parent-relative
 
-                    // 4. Position: cell → shelf slot 4 (ease-out on arrival)
-                    var cellParYB = (-CELL_COUNT / 2 + bc.ci - 1 + 0.5) * compSize;
-                    var cellMYB   = nullY + cellParYB;
+                    // 4. Position in parent-relative space: cell center → shelf slot 4
+                    var cellParYB = (-CELL_COUNT / 2 + bc.ci - 1 + 0.5) * compSize;  // already null-relative
+                    var flyEndY   = shelf4Y - nullY;  // convert absolute shelf4Y to null-relative
                     var posPropB  = flyLyr.property("Position");
-                    posPropB.setValueAtTime(launchT,  [nullX, cellMYB]);
-                    posPropB.setValueAtTime(arrivalT, [nullX, shelf4Y]);
+                    posPropB.setValueAtTime(launchT,  [0, cellParYB]);
+                    posPropB.setValueAtTime(arrivalT, [0, flyEndY]);
                     try {
                         posPropB.setTemporalEaseAtKey(1, [new KeyframeEase(0,   50)], [new KeyframeEase(100, 50)]);
                         posPropB.setTemporalEaseAtKey(2, [new KeyframeEase(100,  0)], [new KeyframeEase(0,    0)]);
