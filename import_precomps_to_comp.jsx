@@ -88,6 +88,8 @@
         if (tg.land)  totalDur += Math.max(tg.land.duration, fd);
         if (tg.win)   totalDur += Math.max(tg.win.duration,  fd);
         if (tg.pop)   totalDur += Math.max(tg.pop.duration,  fd);
+        if (tg.empty) totalDur += Math.max(tg.empty.duration, fd);
+        else          totalDur += fd; // synthetic empty solid (1 frame)
     }
     if (totalDur <= 0) totalDur = 10;
 
@@ -146,6 +148,18 @@
                     seqComp.markerProperty.setValueAtTime(cursor, new MarkerValue(clipName));
                     cursor += clipDur;
                 }
+
+                // Synthetic empty clip: 1-frame transparent solid (always present even without footage)
+                if (!grp.empty) {
+                    var emptyClipName = validIds[si] + "_empty";
+                    var emptyLayer = seqComp.layers.addSolid([0, 0, 0], emptyClipName, drawSize, drawSize, 1, fd);
+                    emptyLayer.startTime = cursor;
+                    emptyLayer.outPoint  = cursor + fd;
+                    emptyLayer.property("Opacity").setValue(0);
+                    emptyLayer.name = emptyClipName;
+                    seqComp.markerProperty.setValueAtTime(cursor, new MarkerValue(emptyClipName));
+                    cursor += fd;
+                }
             }
             cellComps.push(seqComp);
         }
@@ -174,7 +188,7 @@
                 "land="  + (dg.land  ? "yes" : "—") + "  " +
                 "win="   + (dg.win   ? "yes" : "—") + "  " +
                 "pop="   + (dg.pop   ? "yes" : "—") + "  " +
-                "empty=" + (dg.empty ? "yes" : "—")
+                "empty=" + (dg.empty ? "yes" : "auto")
             );
         }
 
