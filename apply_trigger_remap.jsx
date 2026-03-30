@@ -57,12 +57,11 @@
     }
 
     // ----------------------------------------------------------------
-    // Spin expression — applied to Reel_Ctrl Y position
-    // Y value = cumulative scroll offset (px). Starts at 0.
-    // Each "spin" comp marker contributes: totalH * 3 * eased(elapsed)
-    // so multiple spins accumulate cleanly.
+    // Spin expression — applied to Reel_Ctrl Y position.
+    // Null rests at nullBaseY. Each "spin" comp marker accumulates
+    // scroll offset added ON TOP of the rest position.
     // ----------------------------------------------------------------
-    function buildSpinExpr(cellH) {
+    function buildSpinExpr(cellH, nullBaseY) {
         var totalH = cellH * CELL_COUNT;
         return (
             'var spinDur = 2.0;' +
@@ -79,16 +78,16 @@
             '    offset += totalH * cycles * eased;' +
             '  }' +
             '}' +
-            '[value[0], offset];'
+            '[value[0], ' + nullBaseY + ' + offset];'
         );
     }
 
     // Per-cell conveyor position expression.
-    // Reads Reel_Ctrl Y as scroll offset and wraps Y within the stack.
-    function buildCellPosExpr(startX, startY, cellIndex, compSize) {
+    // scrollY = how much the null has moved from its rest position.
+    function buildCellPosExpr(startX, startY, cellIndex, compSize, nullBaseY) {
         var totalH = compSize * CELL_COUNT;
         return (
-            'var scrollY = thisComp.layer("Reel_Ctrl").transform.position[1];' +
+            'var scrollY = thisComp.layer("Reel_Ctrl").transform.position[1] - ' + nullBaseY + ';' +
             'var cellH = ' + compSize + ';' +
             'var totalH = ' + totalH + ';' +
             'var topY = ' + startY + ';' +
@@ -259,9 +258,10 @@
                 if (!nullLayer) {
                     nullLayer = masterComp.layers.addNull();
                     nullLayer.name = "Reel_Ctrl";
-                    // Y=0 means zero scroll; expression drives Y as cumulative offset
-                    nullLayer.position.setValue([startX, 0]);
                 }
+                // Rest position = center of the reel block; scroll accumulates from here
+                var nullBaseY = startY + compSize * (CELL_COUNT - 1) / 2;
+                nullLayer.position.setValue([startX, nullBaseY]);
 
                 for (var ci = 1; ci <= CELL_COUNT; ci++) {
                     var cellComp = findComp("Symbol_Cell_" + ci);
@@ -287,14 +287,14 @@
 
                     // Each cell gets its own modulo-wrap position expression
                     cellLayer.property("Position").expression =
-                        buildCellPosExpr(startX, startY, ci - 1, compSize);
+                        buildCellPosExpr(startX, startY, ci - 1, compSize, nullBaseY);
 
                     cellLayer.timeRemapEnabled = true;
                     cellLayer.property("Time Remap").expression = expr;
                 }
 
                 // Reel_Ctrl Y drives the scroll offset
-                nullLayer.property("Position").expression = buildSpinExpr(compSize);
+                nullLayer.property("Position").expression = buildSpinExpr(compSize, nullBaseY);
 
                 statusTxt.text = "Setup done. Spin: cells wrap independently. Place spin markers to animate.";
                 refreshLists();
