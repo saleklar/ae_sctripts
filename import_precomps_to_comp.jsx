@@ -34,10 +34,17 @@
             idOrder.push(id);
         }
 
-        if      (lower.indexOf("stat") !== -1) groups[id].stat = fitem;
-        else if (lower.indexOf("land") !== -1) groups[id].land = fitem;
-        else if (lower.indexOf("pop")  !== -1) groups[id].pop  = fitem;
-        else if (lower.indexOf("win")  !== -1) groups[id].win  = fitem;
+        var isLand = lower.indexOf("land") !== -1;
+        var isWin  = lower.indexOf("win")  !== -1;
+        var isPop  = lower.indexOf("pop")  !== -1;
+        var isStat = lower.indexOf("stat") !== -1 || lower.indexOf("idle") !== -1 || lower.indexOf("static") !== -1;
+
+        if      (isLand) groups[id].land = fitem;
+        else if (isPop)  groups[id].pop  = fitem;
+        else if (isWin)  groups[id].win  = fitem;
+        else if (isStat) groups[id].stat = fitem;
+        // Fallback: any remaining footage for this ID (e.g. plain PNG) treated as stat
+        else if (!groups[id].stat) groups[id].stat = fitem;
     }
 
     // Keep only IDs that have at least one animation clip
@@ -121,11 +128,24 @@
 
         seqComp.openInViewer();
 
+        // Build per-ID diagnostic
+        var diagLines = [];
+        for (var dgi = 0; dgi < validIds.length; dgi++) {
+            var dg = groups[validIds[dgi]];
+            diagLines.push(
+                validIds[dgi] + ": " +
+                "stat=" + (dg.stat ? dg.stat.name : "—") + "  " +
+                "land=" + (dg.land ? "yes" : "—") + "  " +
+                "win="  + (dg.win  ? "yes" : "—") + "  " +
+                "pop="  + (dg.pop  ? "yes" : "—")
+            );
+        }
+
         alert(
             "Done!\n\n" +
             "\"Symbol_Cell_1\" created.\n" +
-            "Symbols: " + validIds.length + "  |  IDs: " + validIds.join(", ") + "\n" +
-            "Total duration: " + totalDur.toFixed(2) + "s  (" + Math.round(totalDur * fr) + " frames)"
+            "Symbols: " + validIds.length + "  |  Total: " + totalDur.toFixed(2) + "s  (" + Math.round(totalDur * fr) + " frames)\n\n" +
+            "Per-symbol:\n" + diagLines.join("\n")
         );
 
     } catch (e) {
