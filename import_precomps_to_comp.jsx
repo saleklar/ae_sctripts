@@ -104,6 +104,15 @@
     var compSize = parseInt(sizeInput, 10);
     if (isNaN(compSize) || compSize <= 0) { alert("Invalid size."); return; }
 
+    // Variant number overlay settings
+    var fontInput = prompt("Variant overlay font (PostScript name):", "BlueWinter");
+    if (fontInput === null) return;
+    var variantFont = fontInput;
+    var fontSzInput = prompt("Variant overlay font size (px):", String(Math.round(compSize * 0.2)));
+    if (fontSzInput === null) return;
+    var variantFontSize = parseInt(fontSzInput, 10);
+    if (isNaN(variantFontSize) || variantFontSize <= 0) variantFontSize = Math.round(compSize * 0.2);
+
     // ----------------------------------------------------------------
     // Step 3: Measure total duration — sum of every clip that exists
     // ----------------------------------------------------------------
@@ -174,20 +183,21 @@
                     // Marker on seqComp at clip start — acts as lookup table for trigger expression
                     seqComp.markerProperty.setValueAtTime(cursor, new MarkerValue(clipName));
 
-                    // Variant IDs (e.g. "13_1") get a number overlay using blue_winter font
+                    // Variant IDs (e.g. "13_1") get a number overlay
                     var vParts = validIds[si].match(/^(\d+)_(\d+)$/);
                     if (vParts && order[oi] !== "empty") {
                         try {
                             var tl = seqComp.layers.addText(vParts[2]);
                             var tProp = tl.property("Source Text");
                             var tDoc  = tProp.value;
-                            tDoc.font             = "blue_winter";
-                            tDoc.fontSize         = 22;
+                            tDoc.font             = variantFont;
+                            tDoc.fontSize         = variantFontSize;
                             tDoc.fillColor        = [1, 1, 1];
                             tDoc.applyFill        = true;
                             tDoc.strokeColor      = [0, 0, 0];
                             tDoc.strokeWidth      = 2;
                             tDoc.applyStroke      = true;
+                            tDoc.strokeOverFill   = false;
                             tDoc.justification    = ParagraphJustification.CENTER_JUSTIFY;
                             tProp.setValue(tDoc);
                             tl.position.setValue([cx, cy]);
