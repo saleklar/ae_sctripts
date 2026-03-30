@@ -65,14 +65,16 @@
         var top     = -(totalH / 2);                        // top EDGE of reel in parent space
         var baseY   = top + compSize * cellIndex + compSize / 2;  // CENTER of this cell
         return (
-            'var cycles  = 3;' +
             'var totalH  = ' + totalH + ';' +
             'var top     = ' + top    + ';' +
             'var baseY   = ' + baseY  + ';' +
             'var offset  = 0;' +
             'var mm = thisComp.marker;' +
             'for (var i = 1; i <= mm.numKeys; i++) {' +
-            '  if (mm.key(i).comment === "spin" && mm.key(i).time <= time) {' +
+            '  var cmt = mm.key(i).comment;' +
+            '  if (cmt.indexOf("spin") === 0 && mm.key(i).time <= time) {' +
+            '    var parts = cmt.split("_");' +
+            '    var cycles = (parts.length > 1 && parseInt(parts[1]) > 0) ? parseInt(parts[1]) : 3;' +
             '    var spinDur = mm.key(i).duration > 0 ? mm.key(i).duration : 2.0;' +
             '    var elapsed = Math.min(time - mm.key(i).time, spinDur);' +
             '    var t = elapsed / spinDur;' +
@@ -178,7 +180,7 @@
         win.add("panel").preferredSize.height = 1;
 
         var spinBtn = win.add("button", undefined, "\uD83C\uDFB0 Place Spin");
-        spinBtn.helpTip = "Stamps a 'spin' comp marker at the Master playhead; Reel_Ctrl Y will animate 3 conveyor cycles";
+        spinBtn.helpTip = "Stamps 'spin_3' comp marker at playhead. Rename to spin_N for N loops. Drag end to set duration/speed.";
 
         // ----------------------------------------------------------------
         // Refresh all dropdowns from Symbol_Cell_1 markers
@@ -304,10 +306,10 @@
             var t = masterComp.time;
             try {
                 app.beginUndoGroup("Place Spin Marker");
-                var spinMv = new MarkerValue("spin");
+                var spinMv = new MarkerValue("spin_3");
                 spinMv.duration = 2.0;
                 masterComp.markerProperty.setValueAtTime(t, spinMv);
-                statusTxt.text = "Spin @ " + t.toFixed(3) + "s  \u2014  drag marker end to adjust speed";
+                statusTxt.text = "Spin @ " + t.toFixed(3) + "s  \u2014  rename to spin_N for N loops, drag end for speed";
             } catch (e) {
                 alert("Error: " + e.toString());
             } finally {
