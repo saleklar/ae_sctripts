@@ -37,7 +37,7 @@
             '  if (mt <= time && mt > trigTime) { trigTime = mt; trigName = lm.key(mi).comment; }' +
             '}' +
 
-            // ---- Step 2: find most recent spin and the stat before it ----
+            // ---- Step 2: find most recently COMPLETED spin and the stat before it ----
             'var lastSpinEnd = -1; var autoLandClip = "";' +
             'var cm = thisComp.marker;' +
             'for (var si = 1; si <= cm.numKeys; si++) {' +
@@ -45,7 +45,7 @@
             '  if (cmt.indexOf("spin") === 0) {' +
             '    var sd = cm.key(si).duration > 0 ? cm.key(si).duration : 2.0;' +
             '    var se = cm.key(si).time + sd;' +
-            '    if (se > lastSpinEnd) {' +
+            '    if (se <= time && se > lastSpinEnd) {' +
             '      lastSpinEnd = se;' +
             '      var ss = cm.key(si).time;' +
             '      var sbName = ""; var sbTime = -1;' +
