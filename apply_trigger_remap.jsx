@@ -57,33 +57,45 @@
     }
 
     // ----------------------------------------------------------------
-    // Spin expression — applied to Reel_Ctrl position
-    // Reads "spin" markers on thisComp (Master), animates Y with
-    // ease-out for (cycles) full revolutions then returns to base.
+    // Spin expression — applied to Reel_Ctrl Y position
+    // Y value = cumulative scroll offset (px). Starts at 0.
+    // Each "spin" comp marker contributes: totalH * 3 * eased(elapsed)
+    // so multiple spins accumulate cleanly.
     // ----------------------------------------------------------------
-    function buildSpinExpr(cellH, spinDur) {
-        var rev = cellH * CELL_COUNT;  // pixels per full revolution
+    function buildSpinExpr(cellH) {
+        var totalH = cellH * CELL_COUNT;
         return (
-            'var spinDur = ' + spinDur + ';' +
-            'var rev = ' + rev + ';' +
+            'var spinDur = 2.0;' +
+            'var totalH = ' + totalH + ';' +
             'var cycles = 3;' +
-            'var trigTime = -1;' +
+            'var offset = 0;' +
             'var mm = thisComp.marker;' +
             'for (var i = 1; i <= mm.numKeys; i++) {' +
             '  if (mm.key(i).comment === "spin" && mm.key(i).time <= time) {' +
-            '    trigTime = mm.key(i).time;' +
+            '    var st = mm.key(i).time;' +
+            '    var elapsed = Math.min(time - st, spinDur);' +
+            '    var t = elapsed / spinDur;' +
+            '    var eased = (t >= 1) ? 1 : 1 - Math.pow(2, -10 * t);' +
+            '    offset += totalH * cycles * eased;' +
             '  }' +
             '}' +
-            'var bp = value;' +
-            'if (trigTime < 0) {' +
-            '  bp;' +
-            '} else {' +
-            '  var elapsed = Math.min(time - trigTime, spinDur);' +
-            '  var t = elapsed / spinDur;' +
-            '  var eased = (t >= 1) ? 1 : 1 - Math.pow(2, -10 * t);' +
-            '  var offsetY = (rev * cycles * eased) % rev;' +
-            '  [bp[0], bp[1] + offsetY];' +
-            '}'
+            '[value[0], offset];'
+        );
+    }
+
+    // Per-cell conveyor position expression.
+    // Reads Reel_Ctrl Y as scroll offset and wraps Y within the stack.
+    function buildCellPosExpr(startX, startY, cellIndex, compSize) {
+        var totalH = compSize * CELL_COUNT;
+        return (
+            'var scrollY = thisComp.layer("Reel_Ctrl").transform.position[1];' +
+            'var cellH = ' + compSize + ';' +
+            'var totalH = ' + totalH + ';' +
+            'var topY = ' + startY + ';' +
+            'var baseY = topY + cellH * ' + cellIndex + ';' +
+            'var rawY = baseY + scrollY;' +
+            'var wrapped = ((rawY - topY) % totalH + totalH) % totalH + topY;' +
+            '[' + startX + ', wrapped];'
         );
     }
 
@@ -247,7 +259,8 @@
                 if (!nullLayer) {
                     nullLayer = masterComp.layers.addNull();
                     nullLayer.name = "Reel_Ctrl";
-                    nullLayer.position.setValue([startX, masterComp.height / 2]);
+                    // Y=0 means zero scroll; expression drives Y as cumulative offset
+                    nullLayer.position.setValue([startX, 0]);
                 }
 
                 for (var ci = 1; ci <= CELL_COUNT; ci++) {
@@ -267,22 +280,23 @@
                     if (!cellLayer) {
                         cellLayer = masterComp.layers.add(cellComp);
                         cellLayer.startTime = 0;
-                        // Set absolute comp position first — AE auto-converts to parent-relative on parenting
-                        cellLayer.position.setValue([startX, startY + compSize * (ci - 1)]);
                     }
 
-                    // Parent to null (AE recalculates position values to stay visually in place)
-                    cellLayer.parent = nullLayer;
+                    // Remove parent if previously set
+                    cellLayer.parent = null;
+
+                    // Each cell gets its own modulo-wrap position expression
+                    cellLayer.property("Position").expression =
+                        buildCellPosExpr(startX, startY, ci - 1, compSize);
 
                     cellLayer.timeRemapEnabled = true;
                     cellLayer.property("Time Remap").expression = expr;
                 }
 
-                // Apply spin expression to Reel_Ctrl position
-                var spinDurVal = 2.0;
-                nullLayer.property("Position").expression = buildSpinExpr(compSize, spinDurVal);
+                // Reel_Ctrl Y drives the scroll offset
+                nullLayer.property("Position").expression = buildSpinExpr(compSize);
 
-                statusTxt.text = "Setup done. Cells parented to Reel_Ctrl. Spin expr applied (" + spinDurVal + "s).";
+                statusTxt.text = "Setup done. Spin: cells wrap independently. Place spin markers to animate.";
                 refreshLists();
 
             } catch (e) {
@@ -299,26 +313,11 @@
             var masterComp = findComp("Master");
             if (!masterComp) { alert("No \"Master\" comp found."); return; }
 
-            var spinDurVal = 2.0;
-
-            var cell1 = findComp("Symbol_Cell_1");
-            if (!cell1) { alert("Symbol_Cell_1 not found.\nRun Setup Remap first."); return; }
-
-            var nullLayer = null;
-            for (var ni = 1; ni <= masterComp.layers.length; ni++) {
-                if (masterComp.layers[ni].name === "Reel_Ctrl") {
-                    nullLayer = masterComp.layers[ni]; break;
-                }
-            }
-            if (!nullLayer) { alert("Reel_Ctrl not found in Master.\nRun Setup Remap first."); return; }
-
             var t = masterComp.time;
             try {
                 app.beginUndoGroup("Place Spin Marker");
                 masterComp.markerProperty.setValueAtTime(t, new MarkerValue("spin"));
-                // Re-apply with current duration so changes to the field take effect
-                nullLayer.property("Position").expression = buildSpinExpr(cell1.width, spinDurVal);
-                statusTxt.text = "Spin @ " + t.toFixed(3) + "s  \u2014  " + spinDurVal + "s, 3 cycles";
+                statusTxt.text = "Spin @ " + t.toFixed(3) + "s  \u2014  2s, 3 cycles";
             } catch (e) {
                 alert("Error: " + e.toString());
             } finally {
