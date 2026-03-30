@@ -5,9 +5,13 @@
 
 (function () {
 
-    app.beginUndoGroup("Pair Sequence Stack");
+    if (!app.project) {
+        alert("No project is open. Please open your AE project first.");
+        return;
+    }
 
     try {
+        app.beginUndoGroup("Pair Sequence Stack");
 
         // ----------------------------------------------------------------
         // Step 0: Optionally remove items created by a previous run
@@ -114,7 +118,20 @@
         var totalSlots = pairs.length + solos.length;
 
         if (totalSlots === 0) {
-            alert("No layers with ID numbers found.\nLayer names must contain a number AND optionally 'land' or 'win'.");
+            // Diagnostic: list what footage was actually found
+            var ftgList = [];
+            for (var di2 = 1; di2 <= app.project.items.length; di2++) {
+                try {
+                    var ditem = app.project.items[di2];
+                    if (ditem instanceof FootageItem) ftgList.push(ditem.name);
+                } catch (e2) {}
+            }
+            alert(
+                "No layers with ID numbers found.\n\n" +
+                "Layer names must contain a number AND optionally 'land' or 'win'.\n\n" +
+                "Footage items found in project (" + ftgList.length + "):\n" +
+                (ftgList.length ? ftgList.join("\n") : "(none — is the correct project open?)")
+            );
             app.endUndoGroup();
             return;
         }
