@@ -57,6 +57,37 @@
     }
 
     // ----------------------------------------------------------------
+    // Spin expression — applied to Reel_Ctrl position
+    // Reads "spin" markers on thisComp (Master), animates Y with
+    // ease-out for (cycles) full revolutions then returns to base.
+    // ----------------------------------------------------------------
+    function buildSpinExpr(cellH, spinDur) {
+        var rev = cellH * CELL_COUNT;  // pixels per full revolution
+        return (
+            'var spinDur = ' + spinDur + ';' +
+            'var rev = ' + rev + ';' +
+            'var cycles = 3;' +
+            'var trigTime = -1;' +
+            'var mm = thisComp.marker;' +
+            'for (var i = 1; i <= mm.numKeys; i++) {' +
+            '  if (mm.key(i).comment === "spin" && mm.key(i).time <= time) {' +
+            '    trigTime = mm.key(i).time;' +
+            '  }' +
+            '}' +
+            'var bp = value;' +
+            'if (trigTime < 0) {' +
+            '  bp;' +
+            '} else {' +
+            '  var elapsed = Math.min(time - trigTime, spinDur);' +
+            '  var t = elapsed / spinDur;' +
+            '  var eased = (t >= 1) ? 1 : 1 - Math.pow(2, -10 * t);' +
+            '  var offsetY = (rev * cycles * eased) % rev;' +
+            '  [bp[0], bp[1] + offsetY];' +
+            '}'
+        );
+    }
+
+    // ----------------------------------------------------------------
     // Build UI
     // ----------------------------------------------------------------
     function buildUI(win) {
@@ -144,6 +175,19 @@
         var refreshBtn  = win.add("button", undefined, "\u27F3 Refresh Clip Lists");
         var randomizeBtn = win.add("button", undefined, "\uD83C\uDFB2 Randomize Stats");
         randomizeBtn.helpTip = "Places a random stat clip marker on each cell at the current Master playhead";
+
+        win.add("panel").preferredSize.height = 1;
+
+        var spinRow = win.add("group");
+        spinRow.orientation = "row";
+        spinRow.alignChildren = ["left", "center"];
+        spinRow.spacing = 4;
+        spinRow.add("statictext", undefined, "Spin dur(s):");
+        var spinDurField = spinRow.add("edittext", undefined, "2.0");
+        spinDurField.preferredSize.width = 45;
+        var spinBtn = spinRow.add("button", undefined, "\uD83C\uDFB0 Place Spin");
+        spinBtn.preferredSize.width = 100;
+        spinBtn.helpTip = "Stamps a 'spin' comp marker at the Master playhead; Reel_Ctrl Y will animate 3 conveyor cycles";
 
         // ----------------------------------------------------------------
         // Refresh all dropdowns from Symbol_Cell_1 markers
@@ -242,7 +286,12 @@
                     cellLayer.property("Time Remap").expression = expr;
                 }
 
-                statusTxt.text = "Cells 1-" + CELL_COUNT + " parented to \"Reel_Ctrl\" null. Move null to reposition.";
+                // Apply spin expression to Reel_Ctrl position
+                var spinDurVal = parseFloat(spinDurField.value);
+                if (isNaN(spinDurVal) || spinDurVal <= 0) spinDurVal = 2.0;
+                nullLayer.property("Position").expression = buildSpinExpr(compSize, spinDurVal);
+
+                statusTxt.text = "Setup done. Cells parented to Reel_Ctrl. Spin expr applied (" + spinDurVal + "s).";
                 refreshLists();
 
             } catch (e) {
@@ -253,6 +302,39 @@
         };
 
         refreshBtn.onClick = function () { refreshLists(); };
+
+        spinBtn.onClick = function () {
+            if (!app.project) { alert("No project open."); return; }
+            var masterComp = findComp("Master");
+            if (!masterComp) { alert("No \"Master\" comp found."); return; }
+
+            var spinDurVal = parseFloat(spinDurField.value);
+            if (isNaN(spinDurVal) || spinDurVal <= 0) { alert("Invalid spin duration."); return; }
+
+            var cell1 = findComp("Symbol_Cell_1");
+            if (!cell1) { alert("Symbol_Cell_1 not found.\nRun Setup Remap first."); return; }
+
+            var nullLayer = null;
+            for (var ni = 1; ni <= masterComp.layers.length; ni++) {
+                if (masterComp.layers[ni].name === "Reel_Ctrl") {
+                    nullLayer = masterComp.layers[ni]; break;
+                }
+            }
+            if (!nullLayer) { alert("Reel_Ctrl not found in Master.\nRun Setup Remap first."); return; }
+
+            var t = masterComp.time;
+            try {
+                app.beginUndoGroup("Place Spin Marker");
+                masterComp.markerProperty.setValueAtTime(t, new MarkerValue("spin"));
+                // Re-apply with current duration so changes to the field take effect
+                nullLayer.property("Position").expression = buildSpinExpr(cell1.width, spinDurVal);
+                statusTxt.text = "Spin @ " + t.toFixed(3) + "s  \u2014  " + spinDurVal + "s, 3 cycles";
+            } catch (e) {
+                alert("Error: " + e.toString());
+            } finally {
+                app.endUndoGroup();
+            }
+        };
 
         randomizeBtn.onClick = function () {
             if (!app.project) { alert("No project open."); return; }
