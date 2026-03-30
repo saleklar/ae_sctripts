@@ -362,24 +362,27 @@
             for (var ri = 0; ri < REEL_COUNT; ri++) {
                 var dd = grp.add("dropdownlist", undefined, symNames);
                 dd.preferredSize = [COL_W, rowH];
-                (function (r2, dOffset, thisDd) {
-                    thisDd.onChange = function () {
-                        if (_syncing || !thisDd.selection) return;
-                        var n2 = symNames.length;
-                        var picked = thisDd.selection.index;
-                        // convert picked position to landing index
-                        var newLanding = ((picked - dOffset) % n2 + n2) % n2;
-                        curSel[r2] = newLanding;
-                        _syncing = true;
-                        try { syncReel(r2); } finally { _syncing = false; }
-                        var ok = writeSlider(_rc, r2, newLanding);
-                        updateStatus(
-                            ok === true
-                                ? "\u2714  Reel " + (r2 + 1) + " \u2192 " + symNames[newLanding]
-                                : "\u26A0  " + (ok || "Reel_Control not found")
-                        );
-                    };
-                })(ri, def.offset, dd);
+                // Top (▲) and bottom (▼) rows are display-only — they show the
+                // symbols adjacent to the landing; only the center row (◆) is interactive.
+                if (rowIdx !== 1) {
+                    dd.enabled = false;
+                } else {
+                    (function (r2, thisDd) {
+                        thisDd.onChange = function () {
+                            if (_syncing || !thisDd.selection) return;
+                            var newLanding = thisDd.selection.index;
+                            curSel[r2] = newLanding;
+                            _syncing = true;
+                            try { syncReel(r2); } finally { _syncing = false; }
+                            var ok = writeSlider(_rc, r2, newLanding);
+                            updateStatus(
+                                ok === true
+                                    ? "\u2714  Reel " + (r2 + 1) + " \u2192 " + symNames[newLanding]
+                                    : "\u26A0  " + (ok || "Reel_Control not found")
+                            );
+                        };
+                    })(ri, dd);
+                }
                 rowDDs[rowIdx][ri] = dd;
             }
         }
