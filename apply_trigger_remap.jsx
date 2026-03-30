@@ -437,6 +437,38 @@
                 }
 
                 statusTxt.text = "Randomized @ " + t.toFixed(3) + "s  \u2014  " + placed.join("  |  ");
+
+                // --- Randomize shelf_reel_1: each cell gets a random 13_X_stat locked frame ---
+                var shelfComp = findComp("shelf_reel_1");
+                if (shelfComp) {
+                    // Collect only 13_X_stat variant clips
+                    var shelfClips = [];
+                    for (var smi = 1; smi <= nm; smi++) {
+                        var sc = seqComp.markerProperty.keyValue(smi).comment;
+                        if (/^13_\d+_stat$/.test(sc)) shelfClips.push(sc);
+                    }
+                    if (shelfClips.length > 0) {
+                        var shelfPlaced = [];
+                        for (var sli2 = 1; sli2 <= shelfComp.layers.length; sli2++) {
+                            var sl = shelfComp.layers[sli2];
+                            if (!(sl.source instanceof CompItem)) continue;
+                            // Pick random variant
+                            var shelfPick = shelfClips[Math.floor(Math.random() * shelfClips.length)];
+                            // Find its time in Symbol_Cell_1 markers
+                            var shelfTime = 0;
+                            for (var smk = 1; smk <= nm; smk++) {
+                                if (seqComp.markerProperty.keyValue(smk).comment === shelfPick) {
+                                    shelfTime = seqComp.markerProperty.keyTime(smk);
+                                    break;
+                                }
+                            }
+                            // Overwrite constant Time Remap expression
+                            try { sl.property("Time Remap").expression = shelfTime + ";"; } catch(e2) {}
+                            shelfPlaced.push(sl.name + ":" + shelfPick);
+                        }
+                        statusTxt.text = statusTxt.text + "  ||  Shelf: " + shelfPlaced.join(", ");
+                    }
+                }
             } catch (e) {
                 alert("Error: " + e.toString());
             } finally {
