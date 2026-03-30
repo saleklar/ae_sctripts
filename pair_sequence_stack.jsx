@@ -590,8 +590,8 @@
                 '  if (time < se)                        src = time - activeSS;' +
                 // Land phase: reel-comp statPh→statPh+landPh
                 '  if (time >= se && time < se + landPh) src = statPh + (time - se);' +
-                // Stat hold
-                '  if (time >= se + landPh)              src = 0;' +
+                // Static hold: freeze on the last frame of land so the symbol stays visible
+                '  if (time >= se + landPh)              src = statPh + landPh - thisComp.frameDuration;' +
                 // Win: use the win_play marker paired to this spin by index.
                 // win_play markers are matched to spin_start markers in chronological order.
                 // A win_play marker only fires if it falls AFTER this spin's land ends.
