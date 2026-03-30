@@ -1,7 +1,9 @@
-// Import Precomps to Comp
-// Finds all Symbol_ compositions in the project and adds each one
-// as a stacked layer in the currently active/open composition.
-// Layers are centered at t=0, in Symbol_ ID order (bottom to top).
+// Import Precomps to Comp — Sequential
+// Finds all Symbol_ compositions in the project and places them
+// one after another (in sequence) as a single new precomp.
+// Each Symbol_ comp occupies exactly its own duration on the timeline.
+// The new comp is sized to the active comp (or the first Symbol_ comp if
+// no comp is open) and named "Symbol_Sequence".
 
 (function () {
 
@@ -10,14 +12,7 @@
         return;
     }
 
-    // Need an active comp to import into
-    var destComp = app.project.activeItem;
-    if (!destComp || !(destComp instanceof CompItem)) {
-        alert("Please open and activate the destination composition first.");
-        return;
-    }
-
-    // Collect all Symbol_ comps from the project, sorted by ID number
+    // Collect all Symbol_ comps, sorted by numeric ID
     var symComps = [];
     for (var i = 1; i <= app.project.items.length; i++) {
         var item;
@@ -28,34 +23,66 @@
     }
 
     if (symComps.length === 0) {
-        alert("No Symbol_ compositions found in the project.\nRun make_symbol_precomps.jsx first.");
+        alert("No Symbol_ compositions found.\nRun make_symbol_precomps.jsx first.");
         return;
     }
 
-    // Sort ascending by numeric ID
     symComps.sort(function (a, b) { return a.id - b.id; });
+
+    // Use the frame rate and canvas size from the first Symbol_ comp
+    var refComp  = symComps[0].comp;
+    var fr       = refComp.frameRate;
+    var seqW     = refComp.width;
+    var seqH     = refComp.height;
+
+    // Each Symbol_ comp contributes exactly clipDur seconds to the sequence.
+    // All Symbol_ comps share the same normalized duration (same timeline layout),
+    // so we use the first one's duration for every slot.
+    var clipDur  = refComp.duration;
+    var totalDur = clipDur * symComps.length;
 
     var doIt = confirm(
         "Found " + symComps.length + " Symbol_ comp(s).\n\n" +
-        "Add them all as layers into:\n\"" + destComp.name + "\"?\n\n" +
-        "Layers will be centered at t=0, stacked in ID order."
+        "Will create \"Symbol_Sequence\" (" + seqW + "×" + seqH + " px, " +
+        fr + " fps, " + totalDur.toFixed(2) + "s)\n" +
+        "with all symbols laid out sequentially, each " + clipDur.toFixed(2) + "s.\n\n" +
+        "Continue?"
     );
     if (!doIt) return;
 
     try {
-        app.beginUndoGroup("Import Precomps to Comp");
+        app.beginUndoGroup("Import Precomps to Comp Sequential");
 
-        var cx = destComp.width  / 2;
-        var cy = destComp.height / 2;
-
-        // Add in reverse order so lowest ID ends up on top of the layer stack
-        for (var ai = symComps.length - 1; ai >= 0; ai--) {
-            var layer = destComp.layers.add(symComps[ai].comp);
-            layer.startTime = 0;
-            layer.position.setValue([cx, cy]);
+        // Remove an existing Symbol_Sequence if present
+        for (var di = app.project.items.length; di >= 1; di--) {
+            var ditem;
+            try { ditem = app.project.items[di]; } catch (e) { continue; }
+            if ((ditem instanceof CompItem) && ditem.name === "Symbol_Sequence") {
+                try { ditem.remove(); } catch (e) {}
+                break;
+            }
         }
 
-        alert("Done! Added " + symComps.length + " Symbol_ layer(s) to \"" + destComp.name + "\".");
+        var seqComp = app.project.items.addComp("Symbol_Sequence", seqW, seqH, 1, totalDur, fr);
+        var cx = seqW / 2, cy = seqH / 2;
+        var cursor = 0;
+
+        for (var si = 0; si < symComps.length; si++) {
+            var sc    = symComps[si].comp;
+            var layer = seqComp.layers.add(sc);
+            layer.startTime = cursor;
+            layer.outPoint  = cursor + clipDur;
+            layer.position.setValue([cx, cy]);
+            cursor += clipDur;
+        }
+
+        seqComp.openInViewer();
+
+        alert(
+            "Done!\n\n" +
+            "\"Symbol_Sequence\" created with " + symComps.length + " symbol(s) in sequence.\n" +
+            "Total duration: " + totalDur.toFixed(2) + "s  (" + Math.round(totalDur * fr) + " frames)"
+        );
 
     } catch (e) {
         alert("Error: " + e.toString() + (e.line ? "\nLine: " + e.line : ""));
