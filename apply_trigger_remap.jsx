@@ -141,7 +141,9 @@
 
         win.add("panel").preferredSize.height = 1;
 
-        var refreshBtn = win.add("button", undefined, "\u27F3 Refresh Clip Lists");
+        var refreshBtn  = win.add("button", undefined, "\u27F3 Refresh Clip Lists");
+        var randomizeBtn = win.add("button", undefined, "\uD83C\uDFB2 Randomize Stats");
+        randomizeBtn.helpTip = "Places a random stat clip marker on each cell at the current Master playhead";
 
         // ----------------------------------------------------------------
         // Refresh all dropdowns from Symbol_Cell_1 markers
@@ -251,6 +253,67 @@
         };
 
         refreshBtn.onClick = function () { refreshLists(); };
+
+        randomizeBtn.onClick = function () {
+            if (!app.project) { alert("No project open."); return; }
+
+            var masterComp = findComp("Master");
+            if (!masterComp) { alert("No \"Master\" comp found."); return; }
+
+            var seqComp = findComp("Symbol_Cell_1");
+            if (!seqComp || seqComp.markerProperty.numKeys === 0) {
+                alert("Symbol_Cell_1 has no markers.\nRun import_precomps_to_comp.jsx first.");
+                return;
+            }
+
+            // Collect all stat clips
+            var statClips = [];
+            var nm = seqComp.markerProperty.numKeys;
+            for (var mi = 1; mi <= nm; mi++) {
+                var cmt = seqComp.markerProperty.keyValue(mi).comment;
+                if (cmt.indexOf("_stat") !== -1) statClips.push(cmt);
+            }
+            if (statClips.length === 0) {
+                alert("No \"_stat\" clips found in Symbol_Cell_1 markers.");
+                return;
+            }
+
+            var t = masterComp.time;
+            var placed = [];
+
+            try {
+                app.beginUndoGroup("Randomize Stats");
+
+                for (var ci = 1; ci <= CELL_COUNT; ci++) {
+                    // Find the Symbol_Cell_N layer in Master
+                    var cellLayer = null;
+                    for (var li = 1; li <= masterComp.layers.length; li++) {
+                        var l = masterComp.layers[li];
+                        if ((l.source instanceof CompItem) && l.source.name === "Symbol_Cell_" + ci) {
+                            cellLayer = l; break;
+                        }
+                    }
+                    if (!cellLayer) continue;
+
+                    // Pick a random stat clip
+                    var pick = statClips[Math.floor(Math.random() * statClips.length)];
+                    cellLayer.property("Marker").setValueAtTime(t, new MarkerValue(pick));
+                    placed.push("Cell " + ci + ": " + pick);
+
+                    // Sync dropdown selection to match
+                    var dd = dropdowns[ci - 1];
+                    for (var di = 0; di < dd.items.length; di++) {
+                        if (dd.items[di].text === pick) { dd.selection = di; break; }
+                    }
+                }
+
+                statusTxt.text = "Randomized @ " + t.toFixed(3) + "s  \u2014  " + placed.join("  |  ");
+            } catch (e) {
+                alert("Error: " + e.toString());
+            } finally {
+                app.endUndoGroup();
+            }
+        };
 
         // Initial load
         refreshLists();
