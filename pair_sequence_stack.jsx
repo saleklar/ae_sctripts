@@ -450,67 +450,17 @@
         }
 
         // ----------------------------------------------------------------
-        // Step 4: Show symbol-assignment grid dialog, then build 5 reels.
+        // Step 4: Auto-assign landing symbols and build 5 reels.
+        //   Reel i gets symbol index i % numSymbols (sequential, wraps).
+        //   The panel's ◆ row can override any reel after the script runs.
         // ----------------------------------------------------------------
         var reelH    = symSize * CELLS_PER_REEL;
         var numReels = 5;
 
-        // --- ScriptUI grid: rows = reels, columns = symbols, radio per row ---
-        function showSymbolGrid(nReels, items) {
-            var dlg = new Window("dialog", "Assign Landing Symbol per Reel");
-            dlg.orientation = "column";
-            dlg.alignChildren = ["left", "top"];
-            dlg.spacing = 6;
-
-            // Column headers
-            var headerRow = dlg.add("group");
-            headerRow.orientation = "row";
-            headerRow.spacing = 0;
-            var reelLabel = headerRow.add("statictext", undefined, "         ");
-            reelLabel.preferredSize.width = 60;
-            for (var hi = 0; hi < items.length; hi++) {
-                var hdr = headerRow.add("statictext", undefined, items[hi].name);
-                hdr.preferredSize.width = 90;
-                hdr.justify = "center";
-            }
-
-            // One row per reel with radio buttons
-            var radioGroups = [];
-            for (var ri = 0; ri < nReels; ri++) {
-                var row = dlg.add("group");
-                row.orientation = "row";
-                row.spacing = 0;
-                var lbl = row.add("statictext", undefined, "Reel " + (ri + 1) + "  »");
-                lbl.preferredSize.width = 60;
-                radioGroups[ri] = [];
-                for (var si2 = 0; si2 < items.length; si2++) {
-                    var rb = row.add("radiobutton", undefined, "");
-                    rb.preferredSize.width = 90;
-                    if (si2 === ri % items.length) rb.value = true;
-                    radioGroups[ri].push(rb);
-                }
-            }
-
-            var btnGrp = dlg.add("group");
-            btnGrp.alignment = "right";
-            btnGrp.add("button", undefined, "OK",     { name: "ok"     });
-            btnGrp.add("button", undefined, "Cancel", { name: "cancel" });
-
-            if (dlg.show() !== 1) return null;
-
-            var result = [];
-            for (var ri2 = 0; ri2 < nReels; ri2++) {
-                var chosen = ri2 % items.length; // fallback
-                for (var si3 = 0; si3 < radioGroups[ri2].length; si3++) {
-                    if (radioGroups[ri2][si3].value) { chosen = si3; break; }
-                }
-                result.push(chosen);
-            }
-            return result;
+        var landingIdxArr = [];
+        for (var ldi = 0; ldi < numReels; ldi++) {
+            landingIdxArr.push(ldi % precompItems.length);
         }
-
-        var landingIdxArr = showSymbolGrid(numReels, precompItems);
-        if (!landingIdxArr) { app.endUndoGroup(); return; }
 
         var reelComps = [];
         for (var reelIdx = 0; reelIdx < numReels; reelIdx++) {
