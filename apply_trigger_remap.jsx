@@ -24,33 +24,78 @@
     }
 
     // thisLayer.marker for per-layer trigger lookup;
-    // comp("Symbol_Cell_1").marker for clip start/end table (all cells identical)
+    // comp("Symbol_Cell_1").marker for clip start/end table (all cells identical).
+    // After a spin ends the expression auto-plays the _land clip for the symbol
+    // that was triggered before the spin — no manual land markers needed.
     function buildTimeRemapExpr() {
         return (
+            // ---- Step 1: last explicit trigger on this layer ----
             'var trigName = ""; var trigTime = -1;' +
-            'var mm = thisLayer.marker;' +
-            'for (var mi = 1; mi <= mm.numKeys; mi++) {' +
-            '  var mt = mm.key(mi).time;' +
-            '  if (mt <= time && mt > trigTime) { trigTime = mt; trigName = mm.key(mi).comment; }' +
+            'var lm = thisLayer.marker;' +
+            'for (var mi = 1; mi <= lm.numKeys; mi++) {' +
+            '  var mt = lm.key(mi).time;' +
+            '  if (mt <= time && mt > trigTime) { trigTime = mt; trigName = lm.key(mi).comment; }' +
             '}' +
-            'if (trigName === "" || trigTime < 0) {' +
-            '  0;' +
-            '} else {' +
+
+            // ---- Step 2: find most recent spin and the stat before it ----
+            'var lastSpinEnd = -1; var autoLandClip = "";' +
+            'var cm = thisComp.marker;' +
+            'for (var si = 1; si <= cm.numKeys; si++) {' +
+            '  var cmt = cm.key(si).comment;' +
+            '  if (cmt.indexOf("spin") === 0) {' +
+            '    var sd = cm.key(si).duration > 0 ? cm.key(si).duration : 2.0;' +
+            '    var se = cm.key(si).time + sd;' +
+            '    if (se > lastSpinEnd) {' +
+            '      lastSpinEnd = se;' +
+            '      var ss = cm.key(si).time;' +
+            '      var sbName = ""; var sbTime = -1;' +
+            '      for (var li = 1; li <= lm.numKeys; li++) {' +
+            '        var lt = lm.key(li).time;' +
+            '        if (lt < ss && lt > sbTime) { sbTime = lt; sbName = lm.key(li).comment; }' +
+            '      }' +
+            '      autoLandClip = (sbName !== "") ? sbName.split("_")[0] + "_land" : "";' +
+            '    }' +
+            '  }' +
+            '}' +
+
+            // ---- Step 3: look up land clip bounds in Symbol_Cell_1 ----
+            'var landStart = -1; var landEnd = comp("Symbol_Cell_1").duration;' +
+            'if (autoLandClip !== "") {' +
             '  var sm = comp("Symbol_Cell_1").marker;' +
-            '  var clipStart = -1;' +
-            '  var clipEnd   = comp("Symbol_Cell_1").duration;' +
-            '  for (var si = 1; si <= sm.numKeys; si++) {' +
-            '    if (sm.key(si).comment === trigName) {' +
-            '      clipStart = sm.key(si).time;' +
-            '      clipEnd   = (si < sm.numKeys) ? sm.key(si+1).time : comp("Symbol_Cell_1").duration;' +
+            '  for (var xi = 1; xi <= sm.numKeys; xi++) {' +
+            '    if (sm.key(xi).comment === autoLandClip) {' +
+            '      landStart = sm.key(xi).time;' +
+            '      landEnd = (xi < sm.numKeys) ? sm.key(xi+1).time : comp("Symbol_Cell_1").duration;' +
             '      break;' +
             '    }' +
             '  }' +
-            '  if (clipStart < 0) {' +
+            '}' +
+            'var landDur = landEnd - landStart;' +
+
+            // ---- Step 4: if inside the land window, play land clip ----
+            'if (landStart >= 0 && time >= lastSpinEnd && time < lastSpinEnd + landDur) {' +
+            '  var el = time - lastSpinEnd;' +
+            '  landStart + Math.min(el, landDur - thisComp.frameDuration);' +
+            '} else {' +
+
+            // ---- Step 5: normal trigger logic ----
+            '  if (trigName === "" || trigTime < 0) {' +
             '    0;' +
             '  } else {' +
-            '    var elapsed = time - trigTime;' +
-            '    Math.min(clipStart + elapsed, clipEnd - thisComp.frameDuration);' +
+            '    var sm2 = comp("Symbol_Cell_1").marker;' +
+            '    var cStart = -1; var cEnd = comp("Symbol_Cell_1").duration;' +
+            '    for (var ci = 1; ci <= sm2.numKeys; ci++) {' +
+            '      if (sm2.key(ci).comment === trigName) {' +
+            '        cStart = sm2.key(ci).time;' +
+            '        cEnd = (ci < sm2.numKeys) ? sm2.key(ci+1).time : comp("Symbol_Cell_1").duration;' +
+            '        break;' +
+            '      }' +
+            '    }' +
+            '    if (cStart < 0) { 0; }' +
+            '    else {' +
+            '      var el2 = time - trigTime;' +
+            '      Math.min(cStart + el2, cEnd - thisComp.frameDuration);' +
+            '    }' +
             '  }' +
             '}'
         );
