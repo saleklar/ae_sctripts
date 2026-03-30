@@ -45,13 +45,13 @@
             '  if (cmt.indexOf("spin") === 0) {' +
             '    var sd = cm.key(si).duration > 0 ? cm.key(si).duration : 2.0;' +
             '    var se = cm.key(si).time + sd;' +
-            '    if (se <= time && se > lastSpinEnd) {' +
+            '    if (se <= time + 0.001 && se > lastSpinEnd) {' +
             '      lastSpinEnd = se;' +
             '      var ss = cm.key(si).time;' +
             '      var sbName = ""; var sbTime = -1;' +
             '      for (var li = 1; li <= lm.numKeys; li++) {' +
             '        var lt = lm.key(li).time;' +
-            '        if (lt <= ss && lt > sbTime) { sbTime = lt; sbName = lm.key(li).comment; }' +
+            '        if (lt <= se && lt > sbTime) { sbTime = lt; sbName = lm.key(li).comment; }' +
             '      }' +
             '      autoLandClip = (sbName !== "") ? sbName.split("_")[0] + "_land" : "";' +
             '    }' +
