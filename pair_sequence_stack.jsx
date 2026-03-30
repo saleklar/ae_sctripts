@@ -560,7 +560,8 @@
                 // A win_play marker only fires if it falls AFTER this spin's land ends.
                 '  var wp = (activeIdx >= 0 && activeIdx < wins.length) ? wins[activeIdx] : -1;' +
                 '  if (winOn && wp >= se + landPh && time >= wp && time < wp + winPh) src = statPh + landPh + (time - wp);' +
-                '  if (winOn && wp >= se + landPh && time >= wp + winPh)              src = 0;' +
+                // Static hold after win: freeze 2 frames before win end so the symbol stays visible
+                '  if (winOn && wp >= se + landPh && time >= wp + winPh)              src = statPh + landPh + winPh - 2 * thisComp.frameDuration;' +
                 '}' +
                 'src;';
         }
