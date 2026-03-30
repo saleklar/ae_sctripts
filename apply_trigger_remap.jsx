@@ -634,6 +634,15 @@
                         posPropB.setTemporalEaseAtKey(2, [new KeyframeEase(100,  0)], [new KeyframeEase(0,    0)]);
                     } catch(eEaseB) {}
 
+                    // touchT = moment bubble center reaches bottom EDGE of shelf (slot4 center + half cell)
+                    // computed via linear fraction of total travel distance (good enough for user perception)
+                    var totalTravelB = cellMYB - shelf4Y;   // positive: bubble travels upward (Y decreases)
+                    var touchFracB   = (totalTravelB > compSize / 2)
+                                        ? (cellMYB - (shelf4Y + compSize / 2)) / totalTravelB
+                                        : 0;
+                    touchFracB = Math.max(0, Math.min(1, touchFracB));
+                    var touchT = launchT + touchFracB * flyDur;
+
                     // 5. Time Remap expression: stat during flight, land on arrival
                     flyLyr.timeRemapEnabled = true;
                     flyLyr.property("Time Remap").expression =
@@ -643,8 +652,7 @@
                         'var ld=' + landDurB + ';' +
                         'if(time<aT){st;}else{var el=time-aT;ls+Math.min(el,ld-thisComp.frameDuration);}';
 
-                    // 6. Shelf animation: each layer sweeps up by compSize then snaps back;
-                    //    content (Time Remap) swaps at snap point.
+                    // 6. Shelf animation: sweeps up the moment the bubble touches the shelf bottom edge.
                     if (shelfCompB) {
                         var shWB = shelfCompB.width / 2;
                         for (var ssiB = 1; ssiB <= 4; ssiB++) {
@@ -656,46 +664,45 @@
 
                             var origYB = compSize * (ssiB - 1) + compSize / 2;
 
-                            // Position: sweep up immediately on arrival (linear), snap back with hold
+                            // Position: sweep up on touchT (linear), snap back with hold
                             var ppB = ssLL.property("Position");
-                            ppB.setValueAtTime(arrivalT,                 [shWB, origYB]);
-                            ppB.setValueAtTime(arrivalT + shiftDur,      [shWB, origYB - compSize]);
-                            ppB.setValueAtTime(arrivalT + shiftDur + fd, [shWB, origYB]);
-                            // Find and set interpolation by time so prior keys don't break indices
+                            ppB.setValueAtTime(touchT,                 [shWB, origYB]);
+                            ppB.setValueAtTime(touchT + shiftDur,      [shWB, origYB - compSize]);
+                            ppB.setValueAtTime(touchT + shiftDur + fd, [shWB, origYB]);
                             try {
                                 for (var kki = 1; kki <= ppB.numKeys; kki++) {
                                     var kkt = ppB.keyTime(kki);
-                                    if (Math.abs(kkt - arrivalT) < fd * 0.5) {
+                                    if (Math.abs(kkt - touchT) < fd * 0.5) {
                                         ppB.setInterpolationTypeAtKey(kki, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
-                                    } else if (Math.abs(kkt - (arrivalT + shiftDur)) < fd * 0.5) {
+                                    } else if (Math.abs(kkt - (touchT + shiftDur)) < fd * 0.5) {
                                         ppB.setInterpolationTypeAtKey(kki, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.HOLD);
-                                    } else if (Math.abs(kkt - (arrivalT + shiftDur + fd)) < fd * 0.5) {
+                                    } else if (Math.abs(kkt - (touchT + shiftDur + fd)) < fd * 0.5) {
                                         ppB.setInterpolationTypeAtKey(kki, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
                                     }
                                 }
                             } catch(eKiB) {}
 
-                            // Top slot opacity: fade out during sweep (linear start), restore with hold snap
+                            // Top slot opacity: fade out during sweep, restore with hold snap
                             if (ssiB === 1) {
                                 var topOpB = ssLL.property("Opacity");
-                                topOpB.setValueAtTime(arrivalT,                 100);
-                                topOpB.setValueAtTime(arrivalT + shiftDur,        0);
-                                topOpB.setValueAtTime(arrivalT + shiftDur + fd,  100);
+                                topOpB.setValueAtTime(touchT,                 100);
+                                topOpB.setValueAtTime(touchT + shiftDur,        0);
+                                topOpB.setValueAtTime(touchT + shiftDur + fd,  100);
                                 try {
                                     for (var koi = 1; koi <= topOpB.numKeys; koi++) {
                                         var kot = topOpB.keyTime(koi);
-                                        if (Math.abs(kot - arrivalT) < fd * 0.5) {
+                                        if (Math.abs(kot - touchT) < fd * 0.5) {
                                             topOpB.setInterpolationTypeAtKey(koi, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
-                                        } else if (Math.abs(kot - (arrivalT + shiftDur)) < fd * 0.5) {
+                                        } else if (Math.abs(kot - (touchT + shiftDur)) < fd * 0.5) {
                                             topOpB.setInterpolationTypeAtKey(koi, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.HOLD);
                                         }
                                     }
                                 } catch(eOiB) {}
                             }
 
-                            // Time Remap: expression-based hold-then-swap (avoids keyframe-on-expression error)
+                            // Time Remap: hold current symbol until swap point, then show new
                             var newTRB = (ssiB < 4) ? shelfTimes3[ssiB] : (statTB >= 0 ? statTB : 0);
-                            var swapT  = arrivalT + shiftDur + fd;
+                            var swapT  = touchT + shiftDur + fd;
                             try {
                                 ssLL.property("Time Remap").expression =
                                     'time < ' + swapT + ' ? ' + shelfTimes3[ssiB - 1] + ' : ' + newTRB + ';';
