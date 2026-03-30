@@ -251,6 +251,9 @@
         var bubbleFlyBtn = win.add("button", undefined, "\uD83E\uDEF7 Bubble Fly");
         bubbleFlyBtn.helpTip = "At current time: fades bubble cells (13/22-25) to 50%, flies a copy up to the shelf. Each subsequent bubble pushes shelf up.";
 
+        var cleanBtn = win.add("button", undefined, "\uD83D\uDDD1 Clean Up Bubble Fly");
+        cleanBtn.helpTip = "Removes all bubble_fly layers from Master; clears opacity keys on reel cells; resets shelf cell Position/Opacity/TimeRemap.";
+
         // ----------------------------------------------------------------
         // Refresh all dropdowns from Symbol_Cell_1 markers
         // (all cells share identical clip timeline)
@@ -853,6 +856,64 @@
                 statusTxt.text = "Bubble Fly @ " + t0.toFixed(3) + "s  \u2014  " + flyLog.join("  |  ");
 
             } catch (e) {
+                alert("Error: " + e.toString() + (e.line ? "\nLine: " + e.line : ""));
+            } finally {
+                app.endUndoGroup();
+            }
+        };
+
+        cleanBtn.onClick = function () {
+            if (!app.project) { alert("No project open."); return; }
+            var masterComp = findComp("Master");
+            if (!masterComp) { alert("No \"Master\" comp found."); return; }
+            var shelfComp = findComp("shelf_reel_1");
+            try {
+                app.beginUndoGroup("Clean Up Bubble Fly");
+
+                // 1. Remove bubble_fly_N layers from Master
+                var toRemove = [];
+                for (var rli = 1; rli <= masterComp.layers.length; rli++) {
+                    if (masterComp.layers[rli].name.indexOf("bubble_fly_") === 0) {
+                        toRemove.push(masterComp.layers[rli]);
+                    }
+                }
+                for (var ri = 0; ri < toRemove.length; ri++) { try { toRemove[ri].remove(); } catch(e1) {} }
+
+                // 2. Clear opacity keyframes on Symbol_Cell_2/3/4 in Master
+                for (var ci = 2; ci <= CELL_COUNT; ci++) {
+                    for (var li = 1; li <= masterComp.layers.length; li++) {
+                        var lyr = masterComp.layers[li];
+                        try {
+                            if ((lyr.source instanceof CompItem) && lyr.source.name === "Symbol_Cell_" + ci) {
+                                var opProp = lyr.property("Opacity");
+                                while (opProp.numKeys > 0) { opProp.removeKey(1); }
+                                break;
+                            }
+                        } catch(e2) {}
+                    }
+                }
+
+                // 3. Reset shelf cells: clear Position + Opacity keys; reset Time Remap to constant
+                if (shelfComp) {
+                    for (var si = 1; si <= 4; si++) {
+                        for (var sli = 1; sli <= shelfComp.layers.length; sli++) {
+                            if (shelfComp.layers[sli].name === "shelf_cell_" + si) {
+                                var sl = shelfComp.layers[sli];
+                                try { var ppProp = sl.property("Position"); while (ppProp.numKeys > 0) { ppProp.removeKey(1); } } catch(e3) {}
+                                try { var op2Prop = sl.property("Opacity"); while (op2Prop.numKeys > 0) { op2Prop.removeKey(1); } } catch(e4) {}
+                                try {
+                                    var trProp = sl.property("Time Remap");
+                                    var curVal = trProp.valueAtTime(masterComp.time, false);
+                                    trProp.expression = curVal + ";";
+                                } catch(e5) {}
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                statusTxt.text = "Cleaned up " + toRemove.length + " bubble_fly layer(s).";
+            } catch(e) {
                 alert("Error: " + e.toString() + (e.line ? "\nLine: " + e.line : ""));
             } finally {
                 app.endUndoGroup();
