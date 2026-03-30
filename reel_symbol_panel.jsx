@@ -308,11 +308,11 @@
             for (var ri = 0; ri < REEL_COUNT; ri++) {
                 var dd = grp.add("dropdownlist", undefined, symNames);
                 dd.preferredSize = [COL_W, rowH];
-                (function (r2, dOffset) {
-                    dd.onChange = function () {
-                        if (_syncing || !dd.selection) return;
+                (function (r2, dOffset, thisDd) {
+                    thisDd.onChange = function () {
+                        if (_syncing || !thisDd.selection) return;
                         var n2 = symNames.length;
-                        var picked = dd.selection.index;
+                        var picked = thisDd.selection.index;
                         // convert picked position to landing index
                         var newLanding = ((picked - dOffset) % n2 + n2) % n2;
                         curSel[r2] = newLanding;
@@ -324,7 +324,7 @@
                                : "\u26A0  Could not write to Reel_Control"
                         );
                     };
-                })(ri, def.offset);
+                })(ri, def.offset, dd);
                 rowDDs[rowIdx][ri] = dd;
             }
         }
