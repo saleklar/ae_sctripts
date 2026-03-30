@@ -21,6 +21,8 @@
         var fitem;
         try { fitem = app.project.items[i]; } catch (e) { continue; }
         if (!fitem || !(fitem instanceof FootageItem)) continue;
+        // Skip solids, placeholders, and anything that isn't an actual file on disk
+        if (!(fitem.mainSource instanceof FileSource)) continue;
 
         var fname   = fitem.name;
         var idMatch = fname.match(/(\d+)/);
