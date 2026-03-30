@@ -447,10 +447,12 @@
 
                     rl.position.expression = posExpr;
 
-                    // Non-center cells must never animate — freeze them at t=0 (stat frame).
-                    // Only the center cell (ci===2) plays land/win, driven by the outer
-                    // Time Remap on the reel layer in Reels_Group.
-                    if (ci !== 2) {
+                    // Only the outer buffer cells (ci=0, ci=4) are outside the matte window
+                    // and never need to animate — freeze them at t=0.
+                    // Visible rows ci=1 (Above) and ci=3 (Below) animate freely with the
+                    // reel comp time, which is driven by the Time Remap on the reel layer
+                    // in Reels_Group — same as the center cell (ci=2).
+                    if (ci === 0 || ci === 4) {
                         rl.timeRemapEnabled = true;
                         rl.property("Time Remap").expression = '0;';
                     }
