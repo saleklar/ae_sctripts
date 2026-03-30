@@ -251,8 +251,8 @@
         var bubbleFlyBtn = win.add("button", undefined, "\uD83E\uDEF7 Bubble Fly");
         bubbleFlyBtn.helpTip = "At current time: fades bubble cells (13/22-25) to 50%, flies a copy up to the shelf. Each subsequent bubble pushes shelf up.";
 
-        var cleanBtn = win.add("button", undefined, "\uD83D\uDDD1 Clean Up Bubble Fly");
-        cleanBtn.helpTip = "Removes all bubble_fly layers from Master; clears opacity keys on reel cells; resets shelf cell Position/Opacity/TimeRemap.";
+        var cleanBtn = win.add("button", undefined, "\uD83D\uDDD1 Clean Up Reels");
+        cleanBtn.helpTip = "Removes Symbol_Cell/reel_1/shelf_reel_1/Reel_Ctrl/bubble_fly layers from Master, then deletes those comps from the project so you can rebuild from scratch.";
 
         // ----------------------------------------------------------------
         // Refresh all dropdowns from Symbol_Cell_1 markers
@@ -866,53 +866,64 @@
             if (!app.project) { alert("No project open."); return; }
             var masterComp = findComp("Master");
             if (!masterComp) { alert("No \"Master\" comp found."); return; }
-            var shelfComp = findComp("shelf_reel_1");
+
+            var confirmed = confirm(
+                "This will:\n" +
+                "  \u2022 Remove all Symbol_Cell, shelf_reel_1, Reel_Ctrl and bubble_fly layers from Master\n" +
+                "  \u2022 Delete Symbol_Cell_1\u20134, reel_1 and shelf_reel_1 comps from the project\n\n" +
+                "Continue?");
+            if (!confirmed) return;
+
             try {
-                app.beginUndoGroup("Clean Up Bubble Fly");
+                app.beginUndoGroup("Clean Up Reels");
 
-                // 1. Remove bubble_fly_N layers from Master
-                var toRemove = [];
+                // 1. Remove reel-related layers from Master
+                var layersToRemove = [];
                 for (var rli = 1; rli <= masterComp.layers.length; rli++) {
-                    if (masterComp.layers[rli].name.indexOf("bubble_fly_") === 0) {
-                        toRemove.push(masterComp.layers[rli]);
-                    }
-                }
-                for (var ri = 0; ri < toRemove.length; ri++) { try { toRemove[ri].remove(); } catch(e1) {} }
-
-                // 2. Clear opacity keyframes on Symbol_Cell_2/3/4 in Master
-                for (var ci = 2; ci <= CELL_COUNT; ci++) {
-                    for (var li = 1; li <= masterComp.layers.length; li++) {
-                        var lyr = masterComp.layers[li];
-                        try {
-                            if ((lyr.source instanceof CompItem) && lyr.source.name === "Symbol_Cell_" + ci) {
-                                var opProp = lyr.property("Opacity");
-                                while (opProp.numKeys > 0) { opProp.removeKey(1); }
-                                break;
-                            }
-                        } catch(e2) {}
-                    }
-                }
-
-                // 3. Reset shelf cells: clear Position + Opacity keys; reset Time Remap to constant
-                if (shelfComp) {
-                    for (var si = 1; si <= 4; si++) {
-                        for (var sli = 1; sli <= shelfComp.layers.length; sli++) {
-                            if (shelfComp.layers[sli].name === "shelf_cell_" + si) {
-                                var sl = shelfComp.layers[sli];
-                                try { var ppProp = sl.property("Position"); while (ppProp.numKeys > 0) { ppProp.removeKey(1); } } catch(e3) {}
-                                try { var op2Prop = sl.property("Opacity"); while (op2Prop.numKeys > 0) { op2Prop.removeKey(1); } } catch(e4) {}
-                                try {
-                                    var trProp = sl.property("Time Remap");
-                                    var curVal = trProp.valueAtTime(masterComp.time, false);
-                                    trProp.expression = curVal + ";";
-                                } catch(e5) {}
-                                break;
+                    var rl = masterComp.layers[rli];
+                    var rln = rl.name;
+                    var isFlyCopy  = rln.indexOf("bubble_fly_") === 0;
+                    var isReel_Ctrl = rln === "Reel_Ctrl";
+                    var isShelfLyr = rln === "shelf_reel_1";
+                    var isCellLyr  = false;
+                    try {
+                        if (rl.source instanceof CompItem) {
+                            var sn = rl.source.name;
+                            if (sn === "reel_1" || sn === "shelf_reel_1" ||
+                                sn.indexOf("Symbol_Cell_") === 0) {
+                                isCellLyr = true;
                             }
                         }
+                    } catch(ex0) {}
+                    if (isFlyCopy || isReel_Ctrl || isShelfLyr || isCellLyr) {
+                        layersToRemove.push(rl);
                     }
                 }
+                for (var lri = 0; lri < layersToRemove.length; lri++) {
+                    try { layersToRemove[lri].remove(); } catch(ex1) {}
+                }
 
-                statusTxt.text = "Cleaned up " + toRemove.length + " bubble_fly layer(s).";
+                // 2. Delete Symbol_Cell_1..4, reel_1, shelf_reel_1 comps from project
+                var PROJ_COMP_NAMES = {
+                    "Symbol_Cell_1": 1, "Symbol_Cell_2": 1,
+                    "Symbol_Cell_3": 1, "Symbol_Cell_4": 1,
+                    "reel_1": 1, "shelf_reel_1": 1
+                };
+                var projItemsToRemove = [];
+                for (var pi = 1; pi <= app.project.items.length; pi++) {
+                    var pitem;
+                    try { pitem = app.project.items[pi]; } catch(ex2) { continue; }
+                    if (!(pitem instanceof CompItem)) continue;
+                    if (PROJ_COMP_NAMES[pitem.name]) {
+                        projItemsToRemove.push(pitem);
+                    }
+                }
+                for (var pri = 0; pri < projItemsToRemove.length; pri++) {
+                    try { projItemsToRemove[pri].remove(); } catch(ex3) {}
+                }
+
+                statusTxt.text = "Removed " + layersToRemove.length + " layer(s) from Master, " +
+                                 projItemsToRemove.length + " comp(s) from project.";
             } catch(e) {
                 alert("Error: " + e.toString() + (e.line ? "\nLine: " + e.line : ""));
             } finally {
