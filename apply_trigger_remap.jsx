@@ -601,10 +601,12 @@
                     var launchT  = t0 + bi * flyDur;
                     var arrivalT = launchT + flyDur;
 
-                    // 1. Reel cell fades to 50%
+                    // 1. Reel cell fades to 50% on launch, then to 0% when copy arrives
                     var opPropB = bc.layer.property("Opacity");
-                    opPropB.setValueAtTime(launchT,      100);
-                    opPropB.setValueAtTime(launchT + fd,  50);
+                    opPropB.setValueAtTime(launchT,       100);
+                    opPropB.setValueAtTime(launchT + fd,   50);
+                    opPropB.setValueAtTime(arrivalT - fd,  50);
+                    opPropB.setValueAtTime(arrivalT,        0);
 
                     // 2. Land clip info
                     var liPosB   = bc.clip.lastIndexOf("_");
