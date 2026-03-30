@@ -65,7 +65,6 @@
         var top     = -(totalH / 2);                        // top EDGE of reel in parent space
         var baseY   = top + compSize * cellIndex + compSize / 2;  // CENTER of this cell
         return (
-            'var spinDur = 2.0;' +
             'var cycles  = 3;' +
             'var totalH  = ' + totalH + ';' +
             'var top     = ' + top    + ';' +
@@ -74,6 +73,7 @@
             'var mm = thisComp.marker;' +
             'for (var i = 1; i <= mm.numKeys; i++) {' +
             '  if (mm.key(i).comment === "spin" && mm.key(i).time <= time) {' +
+            '    var spinDur = mm.key(i).duration > 0 ? mm.key(i).duration : 2.0;' +
             '    var elapsed = Math.min(time - mm.key(i).time, spinDur);' +
             '    var t = elapsed / spinDur;' +
             '    var eased = (t >= 1) ? 1 : 1 - Math.pow(2, -10 * t);' +
@@ -307,7 +307,7 @@
                 var spinMv = new MarkerValue("spin");
                 spinMv.duration = 2.0;
                 masterComp.markerProperty.setValueAtTime(t, spinMv);
-                statusTxt.text = "Spin @ " + t.toFixed(3) + "s  \u2014  2s, 3 cycles";
+                statusTxt.text = "Spin @ " + t.toFixed(3) + "s  \u2014  drag marker end to adjust speed";
             } catch (e) {
                 alert("Error: " + e.toString());
             } finally {
