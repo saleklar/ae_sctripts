@@ -194,10 +194,29 @@
             var startX = masterComp.width / 2;
             var startY = (masterComp.height - compSize * CELL_COUNT) / 2 + halfCell;
 
+            // Null position: center of Master; cell positions expressed relative to null
+            var nullX = masterComp.width  / 2;
+            var nullY = masterComp.height / 2;
+            // relative Y of cell ci anchor = (startY + compSize*(ci-1)) - nullY
+            var relBaseY = startY - nullY;  // relative Y for ci=1
+
             try {
                 app.beginUndoGroup("Setup Trigger Remap");
 
                 var expr = buildTimeRemapExpr();
+
+                // Find or create the control null
+                var nullLayer = null;
+                for (var ni = 1; ni <= masterComp.layers.length; ni++) {
+                    if (masterComp.layers[ni].name === "Reel_Ctrl") {
+                        nullLayer = masterComp.layers[ni]; break;
+                    }
+                }
+                if (!nullLayer) {
+                    nullLayer = masterComp.layers.addNull();
+                    nullLayer.name = "Reel_Ctrl";
+                    nullLayer.position.setValue([nullX, nullY]);
+                }
 
                 for (var ci = 1; ci <= CELL_COUNT; ci++) {
                     var cellComp = findComp("Symbol_Cell_" + ci);
@@ -216,14 +235,18 @@
                     if (!cellLayer) {
                         cellLayer = masterComp.layers.add(cellComp);
                         cellLayer.startTime = 0;
-                        cellLayer.position.setValue([startX, startY + compSize * (ci - 1)]);
+                        // Position relative to null so block is centered when null is at master center
+                        cellLayer.position.setValue([0, relBaseY + compSize * (ci - 1)]);
                     }
+
+                    // Parent to null
+                    cellLayer.parent = nullLayer;
 
                     cellLayer.timeRemapEnabled = true;
                     cellLayer.property("Time Remap").expression = expr;
                 }
 
-                statusTxt.text = "Cells 1-" + CELL_COUNT + " added to Master. Place markers per cell.";
+                statusTxt.text = "Cells 1-" + CELL_COUNT + " parented to \"Reel_Ctrl\" null. Move null to reposition.";
                 refreshLists();
 
             } catch (e) {
