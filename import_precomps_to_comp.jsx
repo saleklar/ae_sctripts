@@ -109,7 +109,7 @@
             try { ditem = app.project.items[di]; } catch (e) { continue; }
             if (!(ditem instanceof CompItem)) continue;
             var dn = ditem.name;
-            if (dn === "reel_1" ||
+            if (dn === "reel_1" || dn === "shelf_reel_1" ||
                 dn === "Symbol_Cell_1" || dn === "Symbol_Cell_2" ||
                 dn === "Symbol_Cell_3" || dn === "Symbol_Cell_4") {
                 try { ditem.remove(); } catch (e) {}
@@ -177,6 +177,27 @@
         }
 
         reelComp.openInViewer();
+
+        // Build shelf_reel_1: 4 cells all locked to symbol 13_stat (static, no spin)
+        // Find 13_stat time in Symbol_Cell_1 markers
+        var shelf13Time = 0;
+        var refMarkers = cellComps[0].markerProperty;
+        for (var smi = 1; smi <= refMarkers.numKeys; smi++) {
+            if (refMarkers.keyValue(smi).comment === "13_stat") {
+                shelf13Time = refMarkers.keyTime(smi);
+                break;
+            }
+        }
+
+        var shelfComp = app.project.items.addComp("shelf_reel_1", reelW, reelH, 1, totalDur, fr);
+        for (var shi = 0; shi < cellCount; shi++) {
+            var shelfLayer = shelfComp.layers.add(cellComps[0]);  // all 4 use Symbol_Cell_1
+            shelfLayer.position.setValue([reelCX, compSize * shi + compSize / 2]);
+            shelfLayer.name = "shelf_cell_" + (shi + 1);
+            shelfLayer.timeRemapEnabled = true;
+            // Constant expression locks every cell to the 13_stat frame
+            shelfLayer.property("Time Remap").expression = shelf13Time + ";";
+        }
 
         // Build per-ID diagnostic
         var diagLines = [];
