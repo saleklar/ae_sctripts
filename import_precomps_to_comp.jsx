@@ -113,12 +113,14 @@
         }
 
         // Create 4 identical Symbol_Cell comps
+        // drawSize is the actual canvas — 50% larger than the spacing unit
+        var drawSize = Math.round(compSize * 1.5);
         var cellComps = [];
-        var cx = compSize / 2, cy = compSize / 2;
+        var cx = drawSize / 2, cy = drawSize / 2;
 
         for (var ci = 1; ci <= cellCount; ci++) {
             var seqComp = app.project.items.addComp(
-                "Symbol_Cell_" + ci, compSize, compSize, 1, totalDur, fr);
+                "Symbol_Cell_" + ci, drawSize, drawSize, 1, totalDur, fr);
             var cursor = 0;
 
             for (var si = 0; si < validIds.length; si++) {
@@ -152,8 +154,8 @@
 
         for (var ri = 0; ri < cellCount; ri++) {
             var cellLayer = reelComp.layers.add(cellComps[ri]);
-            // Stack cells vertically; center each on its row
-            var cellY = compSize * ri + cy;
+            // Stack cells vertically; center each on its row (uses compSize spacing, not drawSize)
+            var cellY = compSize * ri + compSize / 2;
             cellLayer.position.setValue([reelCX, cellY]);
             cellLayer.name = cellComps[ri].name;
         }
@@ -176,6 +178,7 @@
         alert(
             "Done!\n\n" +
             "4× Symbol_Cell comps created and stacked in \"reel_1\".\n" +
+            "Cell canvas: " + drawSize + " × " + drawSize + " px  (spacing unit: " + compSize + " px)\n" +
             "reel_1 size: " + reelW + " × " + reelH + " px\n" +
             "Symbols: " + validIds.length + "  |  Total: " + totalDur.toFixed(2) + "s  (" + Math.round(totalDur * fr) + " frames)\n\n" +
             "Per-symbol:\n" + diagLines.join("\n")
